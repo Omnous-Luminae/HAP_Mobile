@@ -62,6 +62,8 @@
 | Git | 2.40+ | Gestion de version | https://git-scm.com |
 | XAMPP | 8.2+ | Serveur local PHP/MySQL | https://www.apachefriends.org/fr |
 | JDK | 17 (LTS) | Requis pour les builds Android | https://adoptium.net |
+| Android SDK Command-line Tools | Dernière version | SDK Android en ligne de commande | https://developer.android.com/studio#command-tools |
+| Google Chrome | Dernière version | Exécution Flutter Web (`-d chrome`) | https://www.google.com/chrome/ |
 
 ---
 
@@ -86,7 +88,7 @@ Panneau de configuration → Système → Variables d'environnement
 
 **macOS / Linux :**
 ```bash
-export PATH="PATH:`pwd`/flutter/bin"
+export PATH="$PATH:/chemin/vers/flutter/bin"
 # Ajouter dans ~/.bashrc ou ~/.zshrc pour rendre permanent
 ```
 
@@ -102,9 +104,37 @@ Résultat attendu (tous les éléments en ✓ vert) :
 ```
 [✓] Flutter (Channel stable, 3.x.x)
 [✓] Android toolchain - develop for Android devices
-[✓] Outils Android correctement installes
+[✓] Chrome - develop for the web
 [✓] Connected device (1 available)
 [✓] Network resources
+```
+
+### 3.4 Configuration Android SDK (CLI)
+
+Exemple de configuration sur Windows (adaptez les chemins si besoin) :
+
+```powershell
+flutter config --android-sdk "C:\Android\Sdk"
+```
+
+Installer ensuite les composants SDK requis :
+
+```powershell
+C:\Android\Sdk\cmdline-tools\latest\bin\sdkmanager.bat --sdk_root=C:\Android\Sdk "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+```
+
+Accepter les licences Android :
+
+```powershell
+flutter doctor --android-licenses
+```
+
+### 3.5 Configuration Chrome (Flutter Web)
+
+Si `flutter doctor` ne trouve pas Chrome, définissez la variable d'environnement :
+
+```powershell
+setx CHROME_EXECUTABLE "C:\Program Files\Google\Chrome\Application\chrome.exe"
 ```
 
 ### 3.6 Création du projet Flutter
@@ -762,8 +792,7 @@ class ApiService {
 
   static Future<dynamic> get(String endpoint) async {
     final response = await http.get(
-      Uri.parse('
-$baseUrl/$endpoint'),
+      Uri.parse('$baseUrl/$endpoint'),
       headers: headers,
     );
     return json.decode(response.body);
@@ -771,8 +800,7 @@ $baseUrl/$endpoint'),
 
   static Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
     final response = await http.post(
-      Uri.parse('
-$baseUrl/$endpoint'),
+      Uri.parse('$baseUrl/$endpoint'),
       headers: headers,
       body: json.encode(body),
     );
@@ -930,14 +958,14 @@ Le schéma de base de données MySQL (`project_hap`) reste identique à celui de
 ### Relations entre tables
 
 ```
-ul utilisateurs ──< biens             (un propriétaire possède plusieurs biens)
+utilisateurs ──< biens             (un propriétaire possède plusieurs biens)
 utilisateurs ──< reservations      (un utilisateur fait plusieurs réservations)
 biens        ──< reservations      (un bien a plusieurs réservations)
-ul utilisateurs ──< avis              (un utilisateur écrit plusieurs avis)
+utilisateurs ──< avis              (un utilisateur écrit plusieurs avis)
 biens        ──< avis              (un bien reçoit plusieurs avis)
-ul utilisateurs ──< favoris           (un utilisateur a plusieurs favoris)
+utilisateurs ──< favoris           (un utilisateur a plusieurs favoris)
 biens        ──< favoris           (un bien peut être dans plusieurs listes de favoris)
-ul utilisateurs ──< tickets_support   (un utilisateur ouvre plusieurs tickets)
+utilisateurs ──< tickets_support   (un utilisateur ouvre plusieurs tickets)
 biens        ──< saisons_tarifs    (un bien a plusieurs périodes tarifaires)
 ```
 
@@ -1000,6 +1028,5 @@ flutter build apk --debug
 | `flutter build apk` | Générer l'APK de production |
 | `flutter clean` | Nettoyer le cache de build |
 | `flutter test` | Lancer les tests unitaires |
-```
 
 *Fiche technique mise à jour le 2026-03-05 — Projet HAP Mobile (Flutter) — Accès local gratuit via XAMPP*
