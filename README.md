@@ -664,7 +664,212 @@
 
 ---
 
-### 7.11 Récapitulatif des adaptations mobiles
+### 7.11 Géolocalisation Mobile
+
+> 🔧 **Ajout requis** — La géolocalisation est une fonctionnalité native mobile absente de la version web. Elle s'intègre dans `CarteScreen`, `AnnoncesScreen` et `PtsInteretDetailScreen`.
+
+---
+
+#### 📐 Vue d'ensemble
+
+La géolocalisation permet à l'application de :
+- Centrer automatiquement la carte sur la position GPS réelle de l'utilisateur
+- Trier les biens et points d'intérêt par **distance croissante**
+- Proposer un filtre « Autour de moi » dans `AnnoncesScreen`
+- Calculer et afficher la **distance entre l'utilisateur et un bien / POI**
+
+---
+
+#### 📦 Dépendance Flutter
+
+Ajouter dans `pubspec.yaml` :
+```yaml
+gEolocator: ^11.0.0        # Accès GPS natif Android & iOS
+```
+
+---
+
+#### 🔐 Permissions requises
+
+**Android** — `android/app/src/main/AndroidManifest.xml` :
+```xml
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+```
+
+**iOS** — `ios/Runner/Info.plist` :
+```xml
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>L'application utilise votre position pour afficher les logements et points d'intérêt à proximité.</string>
+<key>NSLocationAlwaysUsageDescription</key>
+<string>L'application utilise votre position pour vous proposer des logements proches.</string>
+```
+
+---
+
+#### ⚙️ Service de géolocalisation — `LocationService`
+
+Créer un service dédié `lib/services/location_service.dart` :
+
+```dart
+import 'package:geolocator/geolocator.dart';
+
+class LocationService {
+  /// Vérifie les permissions et retourne la position actuelle.
+  /// Retourne null si la permission est refusée ou le GPS désactivé.
+  static Future<Position?> getCurrentPosition() async {
+    // 1. Vérifier si le service GPS est activé sur l'appareil
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return null;
+
+    // 2. Vérifier l'état de la permission
+    LocationPermission permission = await Geolocator.checkPermission();
+
+    // 3. Demander la permission si elle n'a jamais été accordée
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return null;
+    }
+
+    // 4. Refus définitif — renvoyer l'utilisateur vers les paramètres système
+    if (permission == LocationPermission.deniedForever) {
+      await Geolocator.openAppSettings();
+      return null;
+    }
+
+    // 5. Retourner la position avec précision haute
+    return await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+  }
+
+  /// Calcule la distance en kilomètres entre deux coordonnées GPS.
+  static double distanceEnKm(
+    double latA, double lngA,
+    double latB, double lngB,
+  ) {
+    double distanceEnMetres = Geolocator.distanceBetween(latA, lngA, latB, lngB);
+    return distanceEnMetres / 1000;
+  }
+}
+```
+
+---
+
+#### 🗺️ Intégration dans `CarteScreen`
+
+**Comportement au chargement :**
+1. Appel `LocationService.getCurrentPosition()` dans `initState()`
+2. Si la position est obtenue → `mapController.move(LatLng(lat, lng), 13.0)` pour centrer la carte sur l'utilisateur
+3. Ajout d'un marqueur bleu distinctif 📍 représentant la position de l'utilisateur dans le `MarkerLayer`
+4. Si la permission est refusée → la carte se centre sur une position par défaut (ex: centre de la France : `LatLng(46.603354, 1.888334)`)
+
+**Bouton « Me localiser » dans l'`AppBar` :**
+- Icône `Icons.my_location`
+- Au clic → rappelle `LocationService.getCurrentPosition()` et recentre la carte
+- Si le GPS est désactivé → `SnackBar` informatif « Activez la géolocalisation dans vos paramètres »
+
+```dart
+// Exemple d'intégration dans initState
+@override
+void initState() {
+  super.initState();
+  _initLocation();
+}
+
+Future<void> _initLocation() async {
+  final position = await LocationService.getCurrentPosition();
+  if (position != null && mounted) {
+    setState(() {
+      _userPosition = LatLng(position.latitude, position.longitude);
+    });
+    _mapController.move(_userPosition!, 13.0);
+  }
+}
+```
+
+---
+
+#### 📋 Intégration dans `AnnoncesScreen`
+
+**Filtre « Autour de moi » :**
+- `FilterChip` ou `Switch` « Autour de moi » dans la barre de filtres
+- Activation → appel `LocationService.getCurrentPosition()`
+- Si position obtenue → ajout des paramètres `lat`, `lng` et `rayon` (ex: 10 km par défaut) à la requête `GET api/search_biens.php?lat=X&lng=Y&rayon=10`
+- Le backend PHP retourne les biens triés par distance croissante
+- Chaque `BienCard` affiche la distance calculée : ex. « 2,4 km »
+
+**Slider de rayon :**
+- `Slider` de 1 à 50 km, valeur par défaut 10 km
+- Affiché uniquement quand le filtre « Autour de moi » est actif
+- Chaque modification du slider relance automatiquement l'appel API avec le nouveau rayon
+
+```dart
+// Calcul de la distance pour l'affichage sur chaque carte
+final double distKm = LocationService.distanceEnKm(
+  _userPosition!.latitude, _userPosition!.longitude,
+  bien.latitude, bien.longitude,
+);
+// Affichage : "2,4 km" ou "< 1 km"
+final String distLabel = distKm < 1
+    ? '< 1 km'
+    : '${distKm.toStringAsFixed(1)} km';
+```
+
+---
+
+#### 📍 Intégration dans `PtsInteretDetailScreen`
+
+- La distance entre la position de l'utilisateur et le POI est calculée via `LocationService.distanceEnKm()` et affichée sous l'adresse du POI (ex: « À 3,7 km de vous »)
+- La liste des biens à proximité du POI est triée par distance croissante par rapport à l'utilisateur (si position disponible), sinon par distance par rapport au POI
+
+---
+
+#### 🔄 Gestion des états de permission
+
+| État de permission | Comportement dans l'app |
+|---|---|
+| **Accordée** | Position GPS utilisée, carte centrée, distances affichées |
+| **Refusée (première fois)** | `SnackBar` informatif « Activez la localisation pour voir les logements proches » — l'app fonctionne sans géolocalisation |
+| **Refusée définitivement** | `AlertDialog` proposant d'ouvrir les paramètres système (`Geolocator.openAppSettings()`) |
+| **GPS désactivé** | `SnackBar` « Le GPS est désactivé. Activez-le dans vos paramètres. » — Bouton « Ouvrir les paramètres » |
+| **Timeout GPS** | Fallback silencieux sur la position par défaut — pas de blocage de l'UI |
+
+---
+
+#### 🔁 Mise à jour de la position en temps réel (optionnel)
+
+Pour les sessions longues (utilisateur en déplacement), il est possible d'écouter les mises à jour de position en continu :
+
+```dart
+StreamSubscription<Position>? _positionStream;
+
+void _startLocationTracking() {
+  _positionStream = Geolocator.getPositionStream(
+    locationSettings: const LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 50, // mise à jour tous les 50 mètres
+    ),
+  ).listen((Position position) {
+    setState(() {
+      _userPosition = LatLng(position.latitude, position.longitude);
+    });
+    // Mise à jour du marqueur utilisateur sur la carte
+  });
+}
+
+@override
+void dispose() {
+  _positionStream?.cancel();
+  super.dispose();
+}
+```
+
+> ⚠️ **Note :** Le tracking continu consomme de la batterie. Il est recommandé de ne l'activer que sur `CarteScreen` et de le stopper dans `dispose()`.
+
+---
+
+### 7.12 Récapitulatif des adaptations mobiles
 
 | Écran | Statut | Action requise |
 |---|---|---|
@@ -673,11 +878,11 @@
 | `ForgotPasswordScreen` | ✅ | — |
 | `ResetPasswordScreen` | ✅ | — |
 | `AccueilScreen` | ✅ | — |
-| `AnnoncesScreen` | ✅ | — |
+| `AnnoncesScreen` | ⚠️ | Filtre « Autour de moi » + `Slider` rayon via `geolocator` |
 | `DetailAnnonceScreen` | ⚠️ | `CustomScrollView` + `Slivers` + `BottomAppBar` pour les boutons d'action |
 | `ReservationScreen` | ✅ | — |
-| `CarteScreen` | ✅ | — |
-| `PtsInteretDetailScreen` | ✅ | — |
+| `CarteScreen` | ⚠️ | Centrage GPS + marqueur position utilisateur + bouton « Me localiser » |
+| `PtsInteretDetailScreen` | ⚠️ | Affichage distance utilisateur ↔ POI via `geolocator` |
 | `FavorisScreen` | ✅ | — |
 | `AvisScreen` | ✅ | — |
 | `ProfilScreen` | ⚠️ | `TabBar` 3 onglets (Infos / Réservations / Paramètres) + `ExpansionTile` |
@@ -700,4 +905,5 @@
 **Dépendances à ajouter dans `pubspec.yaml` suite aux adaptations :**
 ```yaml
 image_picker: ^1.0.7   # Upload photos dans GestionBiensScreen
+géolocator: ^11.0.0    # Géolocalisation GPS dans CarteScreen, AnnoncesScreen, PtsInteretDetailScreen
 ```
