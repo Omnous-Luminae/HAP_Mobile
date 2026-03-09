@@ -75,7 +75,7 @@
 
 ---
 
-#### 🔓 `ResetPasswordScreen` (`auth/reset_password.php`)
+#### ���� `ResetPasswordScreen` (`auth/reset_password.php`)
 
 **Fonctionnalités :**
 - Saisie du nouveau mot de passe + confirmation
@@ -104,7 +104,6 @@
 - Menu de navigation adaptatif selon le rôle :
   - Visiteur : Accueil, Annonces, Carte, Points d'intérêt, Blog
   - Utilisateur connecté : + Profil, Favoris
-  - Admin : + Dashboard Admin
 - Bouton de connexion / déconnexion dans l'`AppBar`
 - Message de bienvenue avec le prénom de l'utilisateur si connecté
 - Support thème clair/sombre (switch accessible depuis `ProfilScreen`)
@@ -165,7 +164,7 @@
 
 > **Plan d'adaptation — `DetailAnnonceScreen` (écran dense) :**
 >  
-> **Problème :** Cet écran cumule galerie + calendrier + calcul de tarif + avis + boutons d'action. Sur mobile, tout ne peut pas être visible sans scroll — il faut éviter les widgets figés qui bloquent le défilement.
+> **Problème :** Cet écran cumule galerie + calendrier + calcul de tarif + avis + boutons d'action. Sur mobile, tout ne peut pas être visible sans scroll — il faut éviter les widgets figés[...]
 >  
 > **Solution :**
 > - Utiliser `CustomScrollView` avec des `Sliver` pour un défilement fluide de tout l'écran :
@@ -265,14 +264,14 @@
 #### 📝 `AvisScreen` (`forms/blog.php`)
 
 **Fonctionnalités :**
-- Liste des avis publiés (validés par l'admin) avec note ⭐ (1 à 5), commentaire, date, auteur
+- Liste des avis publiés avec note ⭐ (1 à 5), commentaire, date, auteur
 - Filtres : par bien, par note minimale
 - Pagination de la liste
 - **Soumission d'un avis** (utilisateur connecté uniquement) :
   - Sélection du bien concerné parmi les biens réservés par l'utilisateur
   - Note de 1 à 5 étoiles (`RatingBar`)
   - Commentaire libre
-  - Les avis soumis sont **en attente de validation admin** avant publication
+  - Les avis soumis sont **en attente de modération** avant publication
 - Message informatif si aucun avis disponible
 
 **Widgets :** `ListView`, `RatingBar`, `TextFormField`, `DropdownButton`  
@@ -310,7 +309,7 @@
 
 > **Plan d'adaptation — `ProfilScreen` (écran très dense) :**
 >  
-> **Problème :** L'écran regroupe : infos personnelles + changement de MDP + historique réservations + switch thème + déconnexion. C'est trop de contenu pour un seul écran mobile sans structure claire.
+> **Problème :** L'écran regroupe : infos personnelles + changement de MDP + historique réservations + switch thème + déconnexion. C'est trop de contenu pour un seul écran mobile sans struc[...]
 >  
 > **Solution — découpage en sections avec `TabBar` :**
 > ```dart
@@ -361,310 +360,7 @@
 
 ---
 
-### 7.10 Dashboard Admin
-
-#### 🛡️ `AdminDashboardScreen` (`apropos.php` + `forms/dashboard.php`)
-
-**Fonctionnalités :**
-- **Accès restreint** au rôle Administrateur (rôle `animateur` côté PHP), vérification côté serveur à chaque requête
-- Statistiques globales en cards :
-  - Nombre d'utilisateurs inscrits
-  - Nombre de réservations (totales / en cours / archivées)
-  - Nombre d'avis (publiés / en attente de validation)
-  - Nombre de tickets support (ouverts / en cours / fermés)
-- Navigation rapide vers tous les sous-modules de gestion
-
-**API :** `GET api/dashboard_stats.php`
-
-**Statut mobile :** ✅ Nativement adapté (StatCards = widgets mobiles natifs)
-
----
-
-#### 🏠 `GestionBiensScreen` (`forms/Bien.form.php`)
-
-**Fonctionnalités :**
-- Liste complète de tous les biens (validés et en attente)
-- **CRUD complet** : créer, afficher, modifier, supprimer un bien
-- Champs : titre, description, prix/nuit, capacité, type de bien, adresse (autocomplete `adresse.data.gouv.fr`), coordonnées GPS, photos
-- Upload multi-photos (ajout dynamique de lignes de photo)
-- Liaison aux prestations (`Compose.form.php`) et points d'intérêt (`Dispose.form.php`)
-- Filtre par statut (validé / en attente)
-
-**API :** `GET/POST/PUT/DELETE api/bien.php`
-
-**Statut mobile :** ⚠️ Adaptation requise
-
-> **Plan d'adaptation — `GestionBiensScreen` (upload photos) :**
->  
-> **Problème :** L'upload multi-photos via input HTML n'existe pas en Flutter. Il faut utiliser `image_picker` pour accéder à la galerie ou la caméra du téléphone.
->  
-> **Solution :**
-> - Ajouter la dépendance dans `pubspec.yaml` :
->   ```yaml
->   image_picker: ^1.0.7
->   ```
-> - Ajouter les permissions Android dans `android/app/src/main/AndroidManifest.xml` :
->   ```xml
->   <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
->   <uses-permission android:name="android.permission.CAMERA"/>
->   ```
-> - Implémenter le sélecteur de photos :
->   ```dart
->   final ImagePicker picker = ImagePicker();
->   final List<XFile> images = await picker.pickMultiImage();
->   ```
-> - Afficher les photos sélectionnées dans un `Wrap` de miniatures avec bouton de suppression individuel
-> - Envoyer les photos au backend PHP via `multipart/form-data` avec `dio` :
->   ```dart
->   FormData formData = FormData.fromMap({
->     'photos': images.map((img) => MultipartFile.fromFileSync(img.path)).toList(),
->   });
->   await dio.post('$baseUrl/bien.php', data: formData);
->   ```
-
----
-
-#### ✅ `ValidationBiensScreen` (`forms/validate_biens.php`)
-
-**Fonctionnalités :**
-- Liste des biens en attente de validation soumis par des propriétaires
-- Aperçu complet du bien (photos, description, adresse, prix)
-- Actions : **Valider** (publier) ou **Refuser** (avec motif)
-- Notification au propriétaire après décision
-
-**API :** `POST api/validate_biens.php`
-
-**Statut mobile :** ✅ Nativement adapté
-
----
-
-#### ⭐ `ValidationAvisScreen` (`forms/validate_reviews.php`)
-
-**Fonctionnalités :**
-- Liste des avis en attente de modération
-- Affichage : auteur, note ⭐, commentaire, date, bien concerné
-- Actions : **Valider** (publier l'avis) ou **Refuser** (supprimer l'avis)
-
-**API :** `POST api/validate_reviews.php`
-
-**Statut mobile :** ✅ Nativement adapté
-
----
-
-#### 👥 `GestionUsersScreen` (`forms/Locataires.form.php`)
-
-**Fonctionnalités :**
-- Liste paginée de tous les utilisateurs
-- **CRUD complet** : créer, modifier, supprimer un utilisateur
-- Bascule type de compte : **particulier** (nom, prénom, email, téléphone, date de naissance, adresse) / **entreprise** (SIRET, raison sociale)
-- Validation SIREN avec algorithme de Luhn
-- Vérification de la majorité (18+ ans) à la création
-- Recherche par nom, prénom ou email (`api/search_locataires.php`)
-- Modification de l'état du compte (actif / bloqué)
-- Modal d'édition avec tous les champs pré-remplis
-
-**Widgets :** `DataTable`, `AlertDialog`, `DropdownButton`  
-**API :** `GET api/search_locataires.php`, `GET/POST/PUT/DELETE api/locataire.php`
-
-**Statut mobile :** ⚠️ Adaptation requise
-
-> **Plan d'adaptation — `GestionUsersScreen` (DataTable non responsive) :**
->  
-> **Problème :** `DataTable` Flutter ne s'adapte pas automatiquement aux petits écrans — les colonnes débordent sur mobile.
->  
-> **Solution — remplacer `DataTable` par des `Card` en `ListView` :**
-> ```dart
-> ListView.builder(
->   itemCount: users.length,
->   itemBuilder: (context, index) {
->     final user = users[index];
->     return Card(
->       child: ListTile(
->         leading: CircleAvatar(child: Text(user.prenom[0])),
->         title: Text('${user.prenom} ${user.nom}'),
->         subtitle: Text(user.email),
->         trailing: PopupMenuButton(items: [
->           PopupMenuItem(value: 'edit', child: Text('Modifier')),  
->           PopupMenuItem(value: 'block', child: Text('Bloquer')),  
->           PopupMenuItem(value: 'delete', child: Text('Supprimer')),  
->         ]),
->       ),
->     );
->   },
-> )
-> ```
-> - La recherche reste accessible via une `SearchBar` en haut de l'écran
-> - L'édition s'ouvre dans un `AlertDialog` ou une `BottomSheet` avec les champs pré-remplis
-> - Le filtre actif/bloqué se fait via des `FilterChip` en haut de liste
-
----
-
-#### 📋 `GestionReservationsScreen` (`forms/Reservation.form.php`)
-
-**Fonctionnalités :**
-- Vue globale de toutes les réservations (tous utilisateurs)
-- **Filtres** : nom de bien, date de début, date de fin, nombre minimum de réservations, statut
-- Modification du statut d'une réservation (en attente → confirmée → annulée → archivée)
-- Calcul et affichage du montant total
-- Navigation vers l'historique par utilisateur
-
-**API :** `GET api/get_reservations.php`, `PUT api/update_reservation.php`
-
-**Statut mobile :** ⚠️ Adaptation requise
-
-> **Plan d'adaptation — `GestionReservationsScreen` (DataTable non responsive) :**
->  
-> **Problème :** Même problème que `GestionUsersScreen` — `DataTable` ou `FilteredDataTable` avec de nombreuses colonnes n'est pas adapté au mobile.
->  
-> **Solution — Cards avec statut coloré :**
-> ```dart
-> Card(
->   color: _statutColor(reservation.statut), // vert/orange/rouge/gris
->   child: ListTile(
->     title: Text(reservation.nomBien),
->     subtitle: Text('${reservation.dateDebut} → ${reservation.dateFin}'),
->     trailing: Column(children: [
->       Text('${reservation.montant}€'),
->       DropdownButton<String>(
->         value: reservation.statut,
->         items: ['en_attente','confirmee','annulee','archivee']
->           .map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
->         onChanged: (val) => _updateStatut(reservation.id, val),
->       ),
->     ]),
->   ),
-> )
-> ```
-> - Les filtres sont accessibles via un `BottomSheet` ou un panneau `ExpansionTile` repliable en haut
-> - Utiliser des `FilterChip` horizontaux scrollables pour les filtres de statut
-
----
-
-#### 🎉 `GestionEvenementsScreen` (`forms/Evenement.form.php`)
-
-**Fonctionnalités :**
-- **CRUD complet** des événements (concerts, festivals, soirées…)
-- Champs : nom, type d'événement, date, adresse, description
-- **CRUD des types d'événements** (`forms/TypeEvenement.form.php`)
-- Liaison des événements aux points d'intérêt
-
-**API :** `GET/POST/PUT/DELETE api/evenement.php`
-
-**Statut mobile :** ✅ Nativement adapté (CRUD ListView)
-
----
-
-#### 📍 `GestionPtsInteretScreen` (`forms/PtsInteret.form.php`)
-
-**Fonctionnalités :**
-- **CRUD complet** des points d'intérêt (clubs, bars, restaurants…)
-- Champs : nom, type de POI, adresse, coordonnées GPS (latitude/longitude)
-- **CRUD des types de POI** (`forms/TypePtsInteret.form.php`)
-- Liaison POI ↔ biens (`forms/Dispose.form.php`)
-- Aperçu sur carte intégrée
-
-**API :** `GET api/get_poi.php`, `GET/POST/PUT/DELETE api/pts_interet.php`
-
-**Statut mobile :** ✅ Nativement adapté
-
----
-
-#### 💰 `GestionTarifsScreen` (`forms/Tarif.form.php` + `forms/manage_tarifs.php`)
-
-**Fonctionnalités :**
-- **CRUD des tarifs** associés à un bien :
-  - Tarif de base par nuit
-  - Modificateur de prix par saison (multiplicateur, ex: 1.5 pour +50%)
-  - Semaines spéciales (prix fixe ou multiplicateur)
-- Visualisation du calendrier tarifaire par bien
-
-**API :** `GET api/get_tarifs_week.php`, `GET/POST/PUT/DELETE api/tarif.php`
-
-**Statut mobile :** ⚠️ Adaptation recommandée
-
-> **Plan d'adaptation — `GestionTarifsScreen` (DataTable tarifaire) :**
->  
-> **Problème :** Le tableau des tarifs par semaine/saison est typiquement représenté sous forme de grille, peu lisible sur mobile.
->  
-> **Solution :**
-> - Remplacer le tableau par une liste de `Card` par saison/période avec les champs modificateurs éditables inline
-> - Pour la visualisation calendaire, utiliser `TableCalendar` en lecture seule avec des marqueurs colorés par niveau de prix
-> - Formulaire d'ajout de tarif dans un `BottomSheet` ou `AlertDialog`
-
----
-
-#### 📆 `GestionSaisonsScreen` (`forms/Saison.form.php`)
-
-**Fonctionnalités :**
-- **CRUD des saisons tarifaires** par bien
-- Champs : nom de la saison (ex: « Été 2026 »), date de début, date de fin, modificateur de prix
-- Vérification de la cohérence des dates (pas de chevauchement)
-
-**API :** `GET/POST/PUT/DELETE api/saison.php`
-
-**Statut mobile :** ✅ Nativement adapté (CRUD ListView)
-
----
-
-#### 🛋️ `GestionPrestationsScreen` (`forms/Prestation.form.php` + `forms/Compose.form.php`)
-
-**Fonctionnalités :**
-- **CRUD des prestations** (Wi-Fi, parking, piscine, cuisine équipée…)
-- Liaison prestation ↔ bien (`Compose.form.php`) : ajouter/retirer des équipements à un bien
-- Recherche de prestations disponibles (`api/search_composition.php`)
-
-**API :** `GET api/search_composition.php`, `GET/POST/DELETE api/prestation.php`
-
-**Statut mobile :** ✅ Nativement adapté
-
----
-
-#### 🏘️ `GestionCommunesScreen` (`forms/Commune.form.php`)
-
-**Fonctionnalités :**
-- **CRUD des communes** référencées dans l'application
-- Champs : nom, code INSEE, département
-- Utilisé pour le filtre de recherche des biens et l'autocomplete d'adresse
-- Intégration API `api/get_commune_by_insee.php`
-
-**API :** `GET api/get_commune_by_insee.php`, `GET api/search_communes.php`
-
-**Statut mobile :** ✅ Nativement adapté
-
----
-
-#### 📦 `ArchivesScreen` (`forms/manage_archives.php`)
-
-**Fonctionnalités :**
-- Liste des réservations archivées (statut `archivée`)
-- Filtres : bien, utilisateur, période de dates
-- Affichage détaillé : bien réservé, locataire, dates, montant, date d'archivage
-- Consultation des détails via `api/get_archive_details.php`
-- Export possible (à implémenter)
-
-**API :** `GET api/get_archive_details.php`
-
-**Statut mobile :** ✅ Nativement adapté
-
----
-
-#### 📬 `GestionContactsScreen` (`forms/manage_contacts.php`)
-
-**Fonctionnalités :**
-- Liste de tous les tickets support soumis par les utilisateurs
-- **Filtres** : par statut (ouvert / en cours / fermé), par priorité, par type
-- Affichage : sujet, message, priorité, page concernée, date de soumission, auteur
-- **Réponse de l'admin** : champ de texte pour rédiger une réponse
-- Changement de statut du ticket (ouvert → en cours → fermé)
-- Mise en évidence des tickets urgents / haute priorité
-
-**API :** `GET/POST api/manage_contacts.php`
-
-**Statut mobile :** ✅ Nativement adapté
-
----
-
-### 7.11 Géolocalisation Mobile
+### 7.10 Géolocalisation Mobile
 
 > 🔧 **Ajout requis** — La géolocalisation est une fonctionnalité native mobile absente de la version web. Elle s'intègre dans `CarteScreen`, `AnnoncesScreen` et `PtsInteretDetailScreen`.
 
@@ -869,7 +565,7 @@ void dispose() {
 
 ---
 
-### 7.12 Récapitulatif des adaptations mobiles
+### 7.11 Récapitulatif des adaptations mobiles
 
 | Écran | Statut | Action requise |
 |---|---|---|
@@ -887,23 +583,8 @@ void dispose() {
 | `AvisScreen` | ✅ | — |
 | `ProfilScreen` | ⚠️ | `TabBar` 3 onglets (Infos / Réservations / Paramètres) + `ExpansionTile` |
 | `SupportScreen` | ✅ | — |
-| `AdminDashboardScreen` | ✅ | — |
-| `GestionBiensScreen` | ⚠️ | `image_picker` pour l'upload photos + permissions Android |
-| `ValidationBiensScreen` | ✅ | — |
-| `ValidationAvisScreen` | ✅ | — |
-| `GestionUsersScreen` | ⚠️ | Remplacer `DataTable` par `ListView` de `Card` + `PopupMenu` |
-| `GestionReservationsScreen` | ⚠️ | Remplacer `DataTable` par `Card` colorées + `DropdownButton` statut |
-| `GestionEvenementsScreen` | ✅ | — |
-| `GestionPtsInteretScreen` | ✅ | — |
-| `GestionTarifsScreen` | ⚠️ | Remplacer tableau tarifs par `Card` + `TableCalendar` en lecture seule |
-| `GestionSaisonsScreen` | ✅ | — |
-| `GestionPrestationsScreen` | ✅ | — |
-| `GestionCommunesScreen` | ✅ | — |
-| `ArchivesScreen` | ✅ | — |
-| `GestionContactsScreen` | ✅ | — |
 
 **Dépendances à ajouter dans `pubspec.yaml` suite aux adaptations :**
 ```yaml
-image_picker: ^1.0.7   # Upload photos dans GestionBiensScreen
 géolocator: ^11.0.0    # Géolocalisation GPS dans CarteScreen, AnnoncesScreen, PtsInteretDetailScreen
 ```
