@@ -7,6 +7,75 @@
 
 ---
 
+## 0. Connexion à la base de données (PHP)
+
+> 🔧 **Prérequis** — Ce fichier doit être créé avant tout développement des APIs PHP. Il est inclus en tête de chaque script API.
+
+Créer le fichier `api/db.php` :
+
+```php
+<?php
+// api/db.php — Connexion PDO sécurisée à project_hap
+define('DB_HOST', '127.0.0.1');
+define('DB_PORT', '3306');
+define('DB_NAME', 'project_hap');
+define('DB_USER', 'root');   // À adapter selon l'environnement
+define('DB_PASS', '');       // XAMPP : vide par défaut
+
+function getPDO(): PDO {
+    static $pdo = null;
+    if ($pdo === null) {
+        try {
+            $dsn = 'mysql:host=' . DB_HOST . ';port=' . DB_PORT
+                 . ';dbname=' . DB_NAME . ';charset=utf8mb4';
+            $pdo = new PDO($dsn, DB_USER, DB_PASS, [
+                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES   => false,
+            ]);
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['error' => 'Connexion BDD échouée']);
+            exit;
+        }
+    }
+    return $pdo;
+}
+
+// Headers communs à toutes les APIs
+header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+```
+
+**Usage dans chaque API :**
+```php
+<?php
+require_once __DIR__ . '/db.php';
+$pdo = getPDO();
+```
+
+---
+
+## Index des performances BDD recommandées
+
+À exécuter une seule fois après import du dump SQL :
+
+```sql
+-- Optimise les requêtes Haversine sur commune (36 000+ entrées)
+CREATE INDEX idx_commune_geo
+ON commune(latitude_commune, longitude_commune);
+
+-- Optimise les recherches de réservations par bien + dates
+CREATE INDEX idx_reservations_biens_dates
+ON reservations(id_biens, date_debut, date_fin);
+
+-- Optimise les recherches de favoris
+CREATE INDEX idx_favoris_user
+ON favoris(id_utilisateur, id_biens);
+```
+
+---
+
 ### 7.1 Authentification
 
 #### 📐 `LoginScreen` (`auth/connexion.php` → `api/login.php`)
@@ -24,6 +93,38 @@
 **API :** `POST api/login.php`
 
 **Statut mobile :** ✅ Nativement adapté — widgets tactiles standards
+
+**SQL impliqué :**
+```sql
+-- Recherche de l'utilisateur
+SELECT id_utilisateur, nom_utilisateur, prenom_utilisateur,
+       email_utilisateur, password_utilisateur, role_utilisateur
+FROM utilisateur
+WHERE email_utilisateur = :email
+LIMIT 1;
+
+-- Vérification anti-brute force
+SELECT COUNT(*) AS nb_tentatives
+FROM login_attempts
+WHERE ip_address = :ip
+  AND success = 0
+  AND attempt_time > DATE_SUB(NOW(), INTERVAL 15 MINUTE);
+
+-- Enregistrement d'une tentative
+INSERT INTO login_attempts (ip_address, email, success, attempt_time)
+VALUES (:ip, :email, :success, NOW());
+```
+
+**Tests :**
+| # | Scénario | Résultat attendu |
+|---|---|---|
+| T1 | Email + MDP valides | Token retourné, `HTTP 200` |
+| T2 | MDP incorrect | `HTTP 401`, message générique |
+| T3 | Email inexistant | `HTTP 401`, même message générique (pas d'énumération) |
+| T4 | 5 tentatives échouées en < 15 min | `HTTP 429`, message de blocage |
+| T5 | Tentative après 15 min de blocage | Débloqué, `HTTP 200` si valide |
+| T6 | Champs vides | `HTTP 422`, erreur de validation |
+| T7 | Token CSRF manquant ou invalide | `HTTP 403` |
 
 ---
 
@@ -58,6 +159,47 @@
 > - Afficher un indicateur de progression clair (`Stepper` en mode `StepperType.horizontal` si l'espace le permet, sinon `vertical`)  
 > - Vider le stockage temporaire à la soumission réussie ou à l'annulation explicite
 
+**SQL impliqué :**
+```sql
+-- Vérification unicité de l'email
+SELECT COUNT(*) FROM utilisateur WHERE email_utilisateur = :email;
+
+-- Insertion d'un particulier
+INSERT INTO utilisateur
+  (nom_utilisateur, prenom_utilisateur, email_utilisateur, telephone_utilisateur,
+   date_naissance_utilisateur, password_utilisateur, role_utilisateur,
+   rue_utilisateur, id_commune)
+VALUES
+  (:nom, :prenom, :email, :telephone, :date_naissance,
+   :password_hash, 'particulier', :rue, :id_commune);
+
+-- Insertion d'une entreprise (avec SIRET)
+INSERT INTO utilisateur
+  (nom_utilisateur, prenom_utilisateur, email_utilisateur, telephone_utilisateur,
+   date_naissance_utilisateur, password_utilisateur, role_utilisateur,
+   rue_utilisateur, id_commune, siret_utilisateur, nom_entreprise)
+VALUES
+  (:nom, :prenom, :email, :telephone, :date_naissance,
+   :password_hash, 'entreprise', :rue, :id_commune, :siret, :nom_entreprise);
+
+-- Anti-spam : vérification IP
+SELECT COUNT(*) FROM register_attempts
+WHERE ip_address = :ip
+  AND attempt_time > DATE_SUB(NOW(), INTERVAL 1 HOUR);
+```
+
+**Tests :**
+| # | Scénario | Résultat attendu |
+|---|---|---|
+| T1 | Toutes les étapes valides (particulier) | Compte créé, `HTTP 201` |
+| T2 | Email déjà existant | `HTTP 409`, message d'erreur |
+| T3 | SIRET invalide (Luhn échoue) | Étape 4 bloquée |
+| T4 | Âge < 18 ans | Étape 2 bloquée |
+| T5 | Captcha mathématique faux | `HTTP 422` |
+| T6 | RGPD non coché | Formulaire bloqué côté client |
+| T7 | App en arrière-plan entre étapes | État restauré depuis `shared_preferences` |
+| T8 | MDP non conforme CNIL | Étape 5 bloquée avec message explicite |
+
 ---
 
 #### 🔑 `ForgotPasswordScreen` (`auth/forgot_password.php`)
@@ -73,9 +215,27 @@
 
 **Statut mobile :** ✅ Nativement adapté
 
+**SQL impliqué :**
+```sql
+-- Vérification existence du compte (réponse générique)
+SELECT id_utilisateur FROM utilisateur
+WHERE email_utilisateur = :email LIMIT 1;
+
+-- Insertion du token de réinitialisation
+INSERT INTO password_reset_tokens (id_utilisateur, token, expires_at)
+VALUES (:id_utilisateur, SHA2(:token_brut, 256), DATE_ADD(NOW(), INTERVAL 1 HOUR));
+```
+
+**Tests :**
+| # | Scénario | Résultat attendu |
+|---|---|---|
+| T1 | Email existant | `HTTP 200`, message générique (lien affiché en local XAMPP) |
+| T2 | Email inexistant | `HTTP 200`, même message générique |
+| T3 | Token expiré (> 1h) | `HTTP 410` à la tentative de reset |
+
 ---
 
-#### ���� `ResetPasswordScreen` (`auth/reset_password.php`)
+#### 🔓 `ResetPasswordScreen` (`auth/reset_password.php`)
 
 **Fonctionnalités :**
 - Saisie du nouveau mot de passe + confirmation
@@ -88,6 +248,32 @@
 **API :** `POST api/reset_password.php`
 
 **Statut mobile :** ✅ Nativement adapté
+
+**SQL impliqué :**
+```sql
+-- Vérification du token
+SELECT prt.id_utilisateur, prt.expires_at
+FROM password_reset_tokens prt
+WHERE prt.token = SHA2(:token, 256)
+  AND prt.expires_at > NOW()
+LIMIT 1;
+
+-- Mise à jour du MDP
+UPDATE utilisateur
+SET password_utilisateur = :bcrypt_hash
+WHERE id_utilisateur = :id_utilisateur;
+
+-- Suppression du token après utilisation
+DELETE FROM password_reset_tokens WHERE token = SHA2(:token, 256);
+```
+
+**Tests :**
+| # | Scénario | Résultat attendu |
+|---|---|---|
+| T1 | Token valide + MDP conforme | MDP mis à jour, `HTTP 200` |
+| T2 | Token expiré | `HTTP 410` |
+| T3 | MDP et confirmation différents | `HTTP 422` |
+| T4 | Token déjà utilisé | `HTTP 410` (supprimé après usage) |
 
 ---
 
@@ -112,6 +298,24 @@
 
 **Statut mobile :** ✅ Nativement adapté
 
+**SQL impliqué : **
+```sql
+-- Biens mis en avant (derniers validés, non masqués)
+SELECT b.id_biens, b.nom_biens, b.description_biens, b.nb_couchage,
+       c.nom_commune, c.cp_commune,
+       t.nom_type_biens,
+       (SELECT tr.prix_nuit FROM tarifs tr WHERE tr.id_biens = b.id_biens
+        ORDER BY tr.date_debut ASC LIMIT 1) AS prix_nuit,
+       (SELECT AVG(a.note_avis) FROM avis a
+        WHERE a.id_biens = b.id_biens AND a.statut_avis = 'publie') AS note_moyenne
+FROM biens b
+INNER JOIN commune c ON b.id_commune = c.id_commune
+INNER JOIN type_biens t ON b.id_type_biens = t.id_type_biens
+WHERE b.is_hidden = 0 AND b.validated = 1
+ORDER BY b.id_biens DESC
+LIMIT 6;
+```
+
 ---
 
 ### 7.3 Annonces & Recherche
@@ -135,6 +339,55 @@
 **API :** `GET api/search_biens.php`, `GET api/search_communes.php`, `POST api/favoris.php`
 
 **Statut mobile :** ✅ Nativement adapté
+
+**SQL impliqué :**
+```sql
+-- Recherche combinée avec filtres + géolocalisation (Haversine intégré)
+SELECT b.id_biens, b.nom_biens, b.nb_couchage, b.animal_biens,
+       c.nom_commune, c.cp_commune, c.latitude_commune, c.longitude_commune,
+       t.nom_type_biens,
+       MIN(tr.prix_nuit) AS prix_min,
+       AVG(a.note_avis) AS note_moyenne,
+       (6371 * ACOS(
+         COS(RADIANS(:lat)) * COS(RADIANS(c.latitude_commune))
+         * COS(RADIANS(c.longitude_commune) - RADIANS(:lng))
+         + SIN(RADIANS(:lat)) * SIN(RADIANS(c.latitude_commune))
+       )) AS distance_km
+FROM biens b
+INNER JOIN commune c ON b.id_commune = c.id_commune
+INNER JOIN type_biens t ON b.id_type_biens = t.id_type_biens
+LEFT JOIN tarifs tr ON tr.id_biens = b.id_biens
+LEFT JOIN avis a ON a.id_biens = b.id_biens AND a.statut_avis = 'publie'
+WHERE b.is_hidden = 0
+  AND b.validated = 1
+  AND (:prix_min IS NULL OR tr.prix_nuit >= :prix_min)
+  AND (:prix_max IS NULL OR tr.prix_nuit <= :prix_max)
+  AND (:capacite IS NULL OR b.nb_couchage >= :capacite)
+  AND (:id_type IS NULL OR b.id_type_biens = :id_type)
+  AND (:id_commune IS NULL OR b.id_commune = :id_commune)
+  -- Filtre géolocalisation : rayon en km (actif uniquement si lat/lng fournis)
+  AND (:lat IS NULL OR (6371 * ACOS(
+    COS(RADIANS(:lat)) * COS(RADIANS(c.latitude_commune))
+    * COS(RADIANS(c.longitude_commune) - RADIANS(:lng))
+    + SIN(RADIANS(:lat)) * SIN(RADIANS(c.latitude_commune))
+  )) <= :rayon)
+GROUP BY b.id_biens
+ORDER BY
+  CASE WHEN :lat IS NOT NULL THEN distance_km ELSE b.id_biens END ASC
+LIMIT 50;
+```
+
+> 💡 **Note géolocalisation :** La formule Haversine est intégrée directement en SQL — pas de champ GPS à ajouter dans `utilisateur`. Les colonnes `latitude_commune` et `longitude_commune` de la table `commune` sont suffisantes.
+
+**Tests :**
+| # | Scénario | Résultat attendu |
+|---|---|---|
+| T1 | Recherche sans filtre | Liste complète (max 50) |
+| T2 | Filtre prix max = 50€ | Seuls les biens ≤ 50€/nuit |
+| T3 | Filtre commune "Lyon" | Biens de Lyon uniquement |
+| T4 | Filtre géolocalisation activé (lat/lng valides, rayon 10 km) | Biens triés par distance croissante |
+| T5 | Coordonnées GPS invalides | Filtre ignoré, liste normale |
+| T6 | Aucun résultat | `[]` avec `HTTP 200` |
 
 ---
 
@@ -164,7 +417,7 @@
 
 > **Plan d'adaptation — `DetailAnnonceScreen` (écran dense) :**
 >  
-> **Problème :** Cet écran cumule galerie + calendrier + calcul de tarif + avis + boutons d'action. Sur mobile, tout ne peut pas être visible sans scroll — il faut éviter les widgets figés[...]
+> **Problème :** Cet écran cumule galerie + calendrier + calcul de tarif + avis + boutons d'action. Sur mobile, tout ne peut pas être visible sans scroll — il faut éviter les widgets figés qui bloquent le défilement.
 >  
 > **Solution :**
 > - Utiliser `CustomScrollView` avec des `Sliver` pour un défilement fluide de tout l'écran :
@@ -182,6 +435,46 @@
 > - Placer les boutons d'action (Favoris + Réserver) dans un `BottomAppBar` fixe en bas d'écran — ils restent toujours visibles sans polluer le scroll
 > - Limiter la hauteur du `TableCalendar` en mode `CalendarFormat.twoWeeks` par défaut, avec option d'expansion en `month`
 > - Afficher uniquement les 3 premiers avis avec un bouton « Voir tous les avis » → `AvisScreen` filtré sur ce bien
+
+**SQL impliqué :**
+```sql
+-- Détail complet d'un bien
+SELECT b.*, c.nom_commune, c.cp_commune, c.latitude_commune, c.longitude_commune,
+       t.nom_type_biens,
+       AVG(a.note_avis) AS note_moyenne,
+       COUNT(a.id_avis) AS nb_avis
+FROM biens b
+INNER JOIN commune c ON b.id_commune = c.id_commune
+INNER JOIN type_biens t ON b.id_type_biens = t.id_type_biens
+LEFT JOIN avis a ON a.id_biens = b.id_biens AND a.statut_avis = 'publie'
+WHERE b.id_biens = :id_biens AND b.is_hidden = 0 AND b.validated = 1
+GROUP BY b.id_biens;
+
+-- Disponibilités bloquées
+SELECT date_debut, date_fin FROM reservations
+WHERE id_biens = :id_biens
+  AND statut_reservation NOT IN ('annulee', 'archivee')
+  AND date_fin >= CURDATE();
+
+-- Semaines indisponibles (JSON dans le champ unavailable_weeks)
+SELECT unavailable_weeks FROM biens WHERE id_biens = :id_biens;
+
+-- Avis du bien (3 premiers)
+SELECT u.prenom_utilisateur, a.note_avis, a.commentaire_avis, a.date_avis
+FROM avis a
+INNER JOIN utilisateur u ON a.id_utilisateur = u.id_utilisateur
+WHERE a.id_biens = :id_biens AND a.statut_avis = 'publie'
+ORDER BY a.date_avis DESC
+LIMIT 3;
+```
+
+**Tests :**
+| # | Scénario | Résultat attendu |
+|---|---|---|
+| T1 | Détail d'un bien existant | Détails corrects, `HTTP 200` |
+| T2 | Bien inexistant | `HTTP 404` |
+| T3 | Réservations bloquées à partir d'une date future | Listé correctement |
+| T4 | Aucune avis disponible | Liste vide | 
 
 ---
 
@@ -206,6 +499,39 @@
 
 **Statut mobile :** ✅ Nativement adapté
 
+**SQL impliqué :**
+```sql
+-- Vérification de disponibilité avant insertion
+SELECT COUNT(*) AS conflit
+FROM reservations
+WHERE id_biens = :id_biens
+  AND statut_reservation NOT IN ('annulee', 'archivee')
+  AND date_debut < :date_fin
+  AND date_fin > :date_debut;
+
+-- Calcul du coût (modificateurs saisonniers)
+SELECT tr.prix_nuit, tr.modificateur
+FROM tarifs tr
+WHERE tr.id_biens = :id_biens
+  AND tr.date_debut <= :date_fin
+  AND tr.date_fin >= :date_debut;
+
+-- Insertion de la réservation
+INSERT INTO reservations
+  (id_utilisateur, id_biens, date_debut, date_fin, montant_total, statut_reservation, date_reservation)
+VALUES
+  (:id_utilisateur, :id_biens, :date_debut, :date_fin, :montant_total, 'en_attente', NOW());
+```
+
+**Tests :**
+| # | Scénario | Résultat attendu |
+|---|---|---|
+| T1 | Dates disponibles + utilisateur connecté | Réservation créée, `HTTP 201` |
+| T2 | Dates chevauchant une réservation existante | `HTTP 409`, message de conflit |
+| T3 | Date de début dans le passé | `HTTP 422` |
+| T4 | Utilisateur non connecté | `HTTP 401` |
+| T5 | Bien masqué ou non validé | `HTTP 404` |
+
 ---
 
 ### 7.5 Carte Interactive
@@ -224,6 +550,29 @@
 **API :** `GET api/get_poi.php`, `GET api/search_biens.php`
 
 **Statut mobile :** ✅ Nativement adapté
+
+**SQL impliqué :**
+```sql
+-- Tous les biens avec coordonnées (marqueurs carte)
+SELECT b.id_biens, b.nom_biens, c.latitude_commune, c.longitude_commune,
+       t.nom_type_biens, MIN(tr.prix_nuit) AS prix_nuit,
+       AVG(a.note_avis) AS note_moyenne
+FROM biens b
+INNER JOIN commune c ON b.id_commune = c.id_commune
+INNER JOIN type_biens t ON b.id_type_biens = t.id_type_biens
+LEFT JOIN tarifs tr ON tr.id_biens = b.id_biens
+LEFT JOIN avis a ON a.id_biens = b.id_biens AND a.statut_avis = 'publie'
+WHERE b.is_hidden = 0 AND b.validated = 1
+GROUP BY b.id_biens;
+
+-- Points d'intérêt (api/get_poi.php)
+SELECT id_poi, nom_poi, type_poi, adresse_poi,
+       latitude_poi, longitude_poi
+FROM points_interet
+WHERE is_hidden = 0;
+```
+
+> 💡 **Géolocalisation :** La position de l'utilisateur (marqueur bleu) vient **uniquement du GPS du téléphone** via `geolocator` — rien n'est stocké en BDD.
 
 ---
 
@@ -257,6 +606,29 @@
 
 **Statut mobile :** ✅ Nativement adapté
 
+**SQL impliqué :**
+```sql
+-- Liste des favoris d'un utilisateur
+SELECT b.id_biens, b.nom_biens, c.nom_commune,
+       MIN(tr.prix_nuit) AS prix_nuit, AVG(a.note_avis) AS note_moyenne
+FROM favoris f
+INNER JOIN biens b ON f.id_biens = b.id_biens
+INNER JOIN commune c ON b.id_commune = c.id_commune
+LEFT JOIN tarifs tr ON tr.id_biens = b.id_biens
+LEFT JOIN avis a ON a.id_biens = b.id_biens AND a.statut_avis = 'publie'
+WHERE f.id_utilisateur = :id_utilisateur AND b.is_hidden = 0
+GROUP BY b.id_biens;
+
+-- Ajouter un favori
+INSERT INTO favoris (id_utilisateur, id_biens, date_ajout)
+VALUES (:id_utilisateur, :id_biens, NOW())
+ON DUPLICATE KEY UPDATE date_ajout = NOW();
+
+-- Supprimer un favori
+DELETE FROM favoris
+WHERE id_utilisateur = :id_utilisateur AND id_biens = :id_biens;
+```
+
 ---
 
 ### 7.7 Avis & Blog
@@ -278,6 +650,39 @@
 **API :** `GET api/get_avis.php`, `POST api/submit_avis.php`
 
 **Statut mobile :** ✅ Nativement adapté
+
+**SQL impliqué :**
+```sql
+-- Liste des avis publiés avec filtres et pagination
+SELECT a.id_avis, a.note_avis, a.commentaire_avis, a.date_avis,
+       u.prenom_utilisateur, u.nom_utilisateur,
+       b.nom_biens
+FROM avis a
+INNER JOIN utilisateur u ON a.id_utilisateur = u.id_utilisateur
+INNER JOIN biens b ON a.id_biens = b.id_biens
+WHERE a.statut_avis = 'publie'
+  AND (:id_biens IS NULL OR a.id_biens = :id_biens)
+  AND (:note_min IS NULL OR a.note_avis >= :note_min)
+ORDER BY a.date_avis DESC
+LIMIT 20 OFFSET :offset;
+
+-- Vérification : l'utilisateur a bien réservé ce bien
+SELECT COUNT(*) FROM reservations
+WHERE id_utilisateur = :id_utilisateur
+  AND id_biens = :id_biens
+  AND statut_reservation IN ('confirmee', 'archivee');
+
+-- Insertion d'un avis (en attente de modération)
+INSERT INTO avis (id_utilisateur, id_biens, note_avis, commentaire_avis, statut_avis, date_avis)
+VALUES (:id_utilisateur, :id_biens, :note, :commentaire, 'en_attente', NOW());
+```
+
+**Tests :**
+| # | Scénario | Résultat attendu |
+|---|---|---|
+| T1 | Soumission d'avis par un utilisateur ayant réservé | Avis en attente de modération, `HTTP 201` |
+| T2 | Tentative d'avis sans réservation associée | `HTTP 403` |
+| T3 | Note hors plage (0 ou 6) | `HTTP 422` |
 
 ---
 
@@ -309,7 +714,7 @@
 
 > **Plan d'adaptation — `ProfilScreen` (écran très dense) :**
 >  
-> **Problème :** L'écran regroupe : infos personnelles + changement de MDP + historique réservations + switch thème + déconnexion. C'est trop de contenu pour un seul écran mobile sans struc[...]
+> **Problème :** L'écran regroupe : infos personnelles + changement de MDP + historique réservations + switch thème + déconnexion. C'est trop de contenu pour un seul écran mobile sans structure claire.
 >  
 > **Solution — découpage en sections avec `TabBar` :**
 > ```dart
@@ -335,6 +740,56 @@
 > - Utiliser `ExpansionTile` dans l'onglet "Infos" pour séparer "Modifier le profil" et "Changer le mot de passe" (repliés par défaut)
 > - Dans l'onglet "Réservations", utiliser un `ListView` avec des `Card` colorées selon le statut (vert=confirmée, orange=en attente, rouge=annulée, gris=archivée)
 
+**SQL impliqué :**
+```sql
+-- Récupération du profil
+SELECT u.id_utilisateur, u.nom_utilisateur, u.prenom_utilisateur,
+       u.email_utilisateur, u.telephone_utilisateur, u.date_naissance_utilisateur,
+       u.rue_utilisateur, c.nom_commune, c.cp_commune, u.role_utilisateur
+FROM utilisateur u
+LEFT JOIN commune c ON u.id_commune = c.id_commune
+WHERE u.id_utilisateur = :id_utilisateur;
+
+-- Mise à jour du profil
+UPDATE utilisateur SET
+  nom_utilisateur = :nom,
+  prenom_utilisateur = :prenom,
+  email_utilisateur = :email,
+  telephone_utilisateur = :telephone,
+  rue_utilisateur = :rue,
+  id_commune = :id_commune
+WHERE id_utilisateur = :id_utilisateur;
+
+-- Changement de mot de passe (vérification ancien MDP puis update)
+SELECT password_utilisateur FROM utilisateur WHERE id_utilisateur = :id_utilisateur;
+UPDATE utilisateur SET password_utilisateur = :nouveau_hash
+WHERE id_utilisateur = :id_utilisateur;
+
+-- Historique des réservations
+SELECT r.id_reservation, r.date_debut, r.date_fin, r.montant_total,
+       r.statut_reservation, b.nom_biens, c.nom_commune
+FROM reservations r
+INNER JOIN biens b ON r.id_biens = b.id_biens
+INNER JOIN commune c ON b.id_commune = c.id_commune
+WHERE r.id_utilisateur = :id_utilisateur
+ORDER BY r.date_debut DESC;
+
+-- Annulation d'une réservation (uniquement si statut = en_attente)
+UPDATE reservations
+SET statut_reservation = 'annulee'
+WHERE id_reservation = :id_reservation
+  AND id_utilisateur = :id_utilisateur
+  AND statut_reservation = 'en_attente';
+```
+
+**Tests :**
+| # | Scénario | Résultat attendu |
+|---|---|---|
+| T1 | Mise à jour profil avec données valides | `HTTP 200`, données mises à jour |
+| T2 | Changement MDP avec ancien MDP incorrect | `HTTP 401` |
+| T3 | Annulation réservation en statut `confirmee` | `HTTP 403` |
+| T4 | Switch thème persisté après redémarrage | Thème restauré depuis `shared_preferences` |
+
 ---
 
 ### 7.9 Support
@@ -358,6 +813,19 @@
 
 **Statut mobile :** ✅ Nativement adapté
 
+**SQL impliqué :**
+```sql
+-- Insertion d'un ticket de support
+INSERT INTO contacts
+  (id_utilisateur, email_contact, nom_contact, type_contact,
+   sujet_contact, message_contact, priorite_contact, page_concernee,
+   numero_ticket, date_contact, statut_contact)
+VALUES
+  (:id_utilisateur, :email, :nom, :type,
+   :sujet, :message, :priorite, :page,
+   LPAD(LAST_INSERT_ID() + 1, 6, '0'), NOW(), 'ouvert');
+```
+
 ---
 
 ### 7.10 Géolocalisation Mobile
@@ -374,13 +842,15 @@ La géolocalisation permet à l'application de :
 - Proposer un filtre « Autour de moi » dans `AnnoncesScreen`
 - Calculer et afficher la **distance entre l'utilisateur et un bien / POI**
 
+> **Décision d'architecture BDD :** La position GPS de l'utilisateur est **éphémère** et gérée exclusivement côté Flutter via `geolocator`. **Aucune table ni colonne GPS n'est ajoutée** pour l'utilisateur. Les colonnes `latitude_commune` et `longitude_commune` de la table `commune` (déjà existantes) sont suffisantes pour calculer les distances côté PHP via la formule de Haversine.
+
 ---
 
 #### 📦 Dépendance Flutter
 
 Ajouter dans `pubspec.yaml` :
 ```yaml
-gEolocator: ^11.0.0        # Accès GPS natif Android & iOS
+geolocator: ^11.0.0        # Accès GPS natif Android & iOS
 ```
 
 ---
@@ -447,6 +917,18 @@ class LocationService {
     double distanceEnMetres = Geolocator.distanceBetween(latA, lngA, latB, lngB);
     return distanceEnMetres / 1000;
   }
+}
+```
+
+**Formule Haversine équivalente côté PHP (pour les APIs) :**
+```php
+function haversineDistance(float $lat1, float $lng1, float $lat2, float $lng2): float {
+    $R = 6371; // Rayon Terre en km
+    $dLat = deg2rad($lat2 - $lat1);
+    $dLng = deg2rad($lng2 - $lng1);
+    $a = sin($dLat/2)**2
+       + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng/2)**2;
+    return $R * 2 * atan2(sqrt($a), sqrt(1 - $a));
 }
 ```
 
@@ -565,6 +1047,40 @@ void dispose() {
 
 ---
 
+#### 🧪 Tests géolocalisation
+
+```
+test/
+└── geolocalisation/
+    ├── location_service_test.dart   -- permission, GPS désactivé, fallback
+    └── distance_calcul_test.dart    -- Haversine Flutter vs PHP
+```
+
+```dart
+// test/geolocalisation/distance_calcul_test.dart
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hap_mobile/services/location_service.dart';
+
+void main() {
+  group('LocationService — calcul de distance', () {
+    test('Paris → Lyon ≈ 392 km', () {
+      final dist = LocationService.distanceEnKm(
+        48.8566, 2.3522,  // Paris
+        45.7640, 4.8357,  // Lyon
+      );
+      expect(dist, closeTo(392.0, 5.0)); // ±5 km de tolérance
+    });
+
+    test('Même point → 0 km', () {
+      final dist = LocationService.distanceEnKm(45.0, 5.0, 45.0, 5.0);
+      expect(dist, equals(0.0));
+    });
+  });
+}
+```
+
+---
+
 ### 7.11 Récapitulatif des adaptations mobiles
 
 | Écran | Statut | Action requise |
@@ -584,7 +1100,71 @@ void dispose() {
 | `ProfilScreen` | ⚠️ | `TabBar` 3 onglets (Infos / Réservations / Paramètres) + `ExpansionTile` |
 | `SupportScreen` | ✅ | — |
 
-**Dépendances à ajouter dans `pubspec.yaml` suite aux adaptations :**
+---
+
+### 7.12 Dépendances `pubspec.yaml` complètes
+
 ```yaml
-géolocator: ^11.0.0    # Géolocalisation GPS dans CarteScreen, AnnoncesScreen, PtsInteretDetailScreen
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Géolocalisation GPS
+  geolocator: ^11.0.0
+
+  # Carte OpenStreetMap
+  flutter_map: ^6.0.0
+  latlong2: ^0.9.0
+
+  # Calendrier de disponibilité
+  table_calendar: ^3.0.9
+
+  # Images réseau avec cache
+  cached_network_image: ^3.3.1
+
+  # Notation étoiles
+  flutter_rating_bar: ^4.0.1
+
+  # Carrousel
+  carousel_slider: ^4.2.1
+
+  # Persistance locale
+  shared_preferences: ^2.2.2
+
+  # Gestion d'état
+  flutter_riverpod: ^2.4.9   # ou provider: ^6.1.1 selon ton choix
+
+  # HTTP
+  http: ^1.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  mockito: ^5.4.4
+  build_runner: ^2.4.7
+```
+
+---
+
+### 7.13 Structure des tests Flutter recommandée
+
+```
+test/
+├── auth/
+│   ├── login_test.dart             -- T1 à T7
+│   ├── inscription_test.dart       -- T1 à T8 + persistance Stepper
+│   └── forgot_password_test.dart   -- T1 à T3
+├── annonces/
+│   ├── search_biens_test.dart      -- filtres + géolocalisation
+│   └── detail_annonce_test.dart    -- calendrier + calcul tarif
+├── reservation/
+│   └── reservation_test.dart       -- conflit de dates, calcul montant
+├── profil/
+│   └── profil_test.dart            -- onglets TabBar, historique
+├── geolocalisation/
+│   ├── location_service_test.dart  -- permission, GPS désactivé
+│   └── distance_calcul_test.dart   -- Haversine
+└── widget_test.dart                -- smoke test général
+```
 ```
