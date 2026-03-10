@@ -35,6 +35,43 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
 
+  # Appels HTTP vers l'API PHP
+  http: ^1.2.0
+
+  # Stockage local du token JWT et des préférences
+  shared_preferences: ^2.2.3
+
+  # Navigation déclarative entre écrans
+  go_router: ^14.0.0
+
+  # Gestion d'état (AuthProvider)
+  provider: ^6.1.2
+
+  # Carte interactive (équivalent de map.php)
+  flutter_map: ^7.0.0
+  latlong2: ^0.9.1
+
+  # Notation par étoiles (avis sur les biens)
+  flutter_rating_bar: ^4.0.1
+
+  # Images distantes avec cache
+  cached_network_image: ^3.3.1
+
+  # Carrousel de photos pour les biens
+  carousel_slider: ^5.0.0
+
+  # Formatage de dates (date_naissance, réservations)
+  intl: ^0.19.0
+
+  # Calendrier pour la sélection des dates de réservation
+  table_calendar: ^3.1.2
+
+  # Icônes Font Awesome
+  font_awesome_flutter: ^10.7.0
+
+  # Effet de chargement squelette (shimmer)
+  shimmer: ^3.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
