@@ -1,10 +1,18 @@
 /// register_screen.dart — Écran d'inscription HAP Mobile
 ///
 /// Permet à un nouveau locataire de créer un compte.
-/// Inclut un champ d'autocomplete pour la commune (via search_communes.php).
+/// Inclut :
+///   - Autocomplete commune (via search_communes.php) avec debounce 300 ms
+///   - Autocomplete rue (via api-adresse.data.gouv.fr) conditionnelle à la commune
+///   - Validation complète de tous les champs
+///   - Saisie manuelle libre si l'API adresse est indisponible
+
+import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -34,7 +42,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool   _obscureConfirmPassword = true;
   DateTime? _selectedDate;
   int?   _selectedCommuneId;
+  String? _selectedCodeInsee;
   List<Map<String, dynamic>> _communes = [];
+  bool   _searchingCommune = false;
+  Timer? _communeDebounce;
+
+  // ── Rue autocomplete ──────────────────────────────────────────────────────
+  List<String> _ruesSuggestions = [];
+  bool   _searchingRue     = false;
+  bool   _rueApiError      = false;
+  Timer? _rueDebounce;
 
   // ── Couleurs du thème HAP ────────────────────────────────────────────────
   static const Color _bg      = Color(0xFF1a1a2e);
@@ -51,28 +68,106 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _confirmPasswordCtrl.dispose();
     _rueCtrl.dispose();
     _communeCtrl.dispose();
+    _communeDebounce?.cancel();
+    _rueDebounce?.cancel();
     super.dispose();
   }
 
   // ── Recherche de communes ─────────────────────────────────────────────────
 
-  /// Interroge l'API search_communes.php et met à jour la liste [_communes].
-  Future<void> _searchCommunes(String query) async {
+  /// Interroge l'API search_communes.php avec debounce 300 ms.
+  void _onCommuneChanged(String query) {
+    _communeDebounce?.cancel();
     if (query.length < 2) {
-      setState(() => _communes = []);
+      setState(() {
+        _communes        = [];
+        _searchingCommune = false;
+      });
       return;
     }
-    try {
-      final data = await ApiService.get(
-        ApiConfig.communes,
-        params: {'q': query},
-      ) as List<dynamic>;
-      setState(() {
-        _communes = data.cast<Map<String, dynamic>>();
-      });
-    } catch (_) {
-      setState(() => _communes = []);
+    setState(() => _searchingCommune = true);
+    _communeDebounce = Timer(const Duration(milliseconds: 300), () async {
+      try {
+        final data = await ApiService.get(
+          ApiConfig.communes,
+          params: {'q': query},
+        ) as List<dynamic>;
+        if (mounted) {
+          setState(() {
+            _communes         = data.cast<Map<String, dynamic>>();
+            _searchingCommune = false;
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => _searchingCommune = false);
+      }
+    });
+  }
+
+  /// Appelé lorsqu'une commune est sélectionnée dans la liste.
+  void _onCommuneSelected(Map<String, dynamic> c) {
+    setState(() {
+      _communeCtrl.text  = '${c['nom_commune']} (${c['cp_commune']})';
+      _selectedCommuneId = c['id_commune'] as int?;
+      _selectedCodeInsee = c['code_insee'] as String?;
+      _communes          = [];
+      // Réinitialiser la rue quand la commune change
+      _rueCtrl.clear();
+      _ruesSuggestions = [];
+    });
+  }
+
+  // ── Recherche de rues (API adresse.data.gouv.fr) ──────────────────────────
+
+  /// Interroge l'API publique française avec debounce 300 ms.
+  /// Désactivé si aucune commune n'est sélectionnée.
+  void _onRueChanged(String query) {
+    _rueDebounce?.cancel();
+    if (_selectedCodeInsee == null || query.length < 3) {
+      setState(() => _ruesSuggestions = []);
+      return;
     }
+    _rueDebounce = Timer(const Duration(milliseconds: 300), () async {
+      if (!mounted) return;
+      setState(() => _searchingRue = true);
+      try {
+        final uri = Uri.parse(ApiConfig.adresseGouv).replace(
+          queryParameters: {
+            'q':        query,
+            'citycode': _selectedCodeInsee!,
+            'type':     'housenumber',
+            'limit':    '8',
+          },
+        );
+        final response = await http.get(uri).timeout(const Duration(seconds: 5));
+        if (!mounted) return;
+        if (response.statusCode == 200) {
+          final body     = jsonDecode(response.body) as Map<String, dynamic>;
+          final features = (body['features'] as List<dynamic>?) ?? [];
+          setState(() {
+            _ruesSuggestions = features
+                .map((f) =>
+                    (f['properties'] as Map<String, dynamic>)['label'] as String? ?? '')
+                .where((l) => l.isNotEmpty)
+                .toList();
+            _searchingRue = false;
+            _rueApiError  = false;
+          });
+        } else {
+          setState(() {
+            _searchingRue = false;
+            _rueApiError  = true;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {
+            _searchingRue = false;
+            _rueApiError  = true; // Permet la saisie manuelle libre
+          });
+        }
+      }
+    });
   }
 
   // ── Sélection de la date de naissance ─────────────────────────────────────
@@ -106,6 +201,30 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // Validation de la date de naissance
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez sélectionner votre date de naissance.'),
+          backgroundColor: _accent,
+        ),
+      );
+      return;
+    }
+
+    // Validation de la commune
+    if (_selectedCommuneId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez sélectionner une commune dans la liste.'),
+          backgroundColor: _accent,
+        ),
+      );
+      return;
+    }
+
+    // Confirmation mot de passe
     if (_passwordCtrl.text != _confirmPasswordCtrl.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -123,16 +242,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
       'email':          _emailCtrl.text.trim(),
       'password':       _passwordCtrl.text,
       'telephone':      _telephoneCtrl.text.trim(),
-      'date_naissance': _selectedDate != null
-          ? DateFormat('yyyy-MM-dd').format(_selectedDate!)
-          : '',
-      'rue':        _rueCtrl.text.trim(),
-      'id_commune': _selectedCommuneId ?? 0,
+      'date_naissance': DateFormat('yyyy-MM-dd').format(_selectedDate!),
+      'rue':            _rueCtrl.text.trim(),
+      'id_commune':     _selectedCommuneId ?? 0,
     });
 
     if (!mounted) return;
 
     if (success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Compte créé avec succès ! Bienvenue 🎉'),
+          backgroundColor: Colors.green,
+        ),
+      );
       context.go('/home');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -207,7 +330,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   keyboardType: TextInputType.emailAddress,
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Email requis';
-                    if (!v.contains('@')) return 'Email invalide';
+                    if (!RegExp(r'^[\w.+-]+@[\w-]+\.\w{2,}$').hasMatch(v)) {
+                      return 'Email invalide';
+                    }
                     return null;
                   },
                 ),
@@ -220,6 +345,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   hint: '06 12 34 56 78',
                   icon: Icons.phone_outlined,
                   keyboardType: TextInputType.phone,
+                  validator: (v) {
+                    if (v == null || v.isEmpty) return 'Requis';
+                    final digits = v.replaceAll(RegExp(r'\s'), '');
+                    if (!RegExp(r'^0\d{9}$').hasMatch(digits)) {
+                      return '10 chiffres, commence par 0';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 16),
 
@@ -257,27 +390,32 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // ── Rue ───────────────────────────────────────────────────────
-                _buildField(
-                  label: 'Rue',
-                  controller: _rueCtrl,
-                  hint: '12 rue de la Paix',
-                  icon: Icons.home_outlined,
-                ),
-                const SizedBox(height: 16),
-
-                // ── Commune (autocomplete) ─────────────────────────────────────
-                _buildLabel('Commune'),
+                // ── Commune (autocomplete avec debounce) ──────────────────────
+                _buildLabel('Commune *'),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _communeCtrl,
                   style: const TextStyle(color: Colors.white),
                   decoration: _inputDecoration(
                     'Rechercher une commune…',
-                    const Icon(Icons.location_city_outlined,
-                        color: Colors.white38),
+                    _searchingCommune
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: _accent,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          )
+                        : const Icon(Icons.location_city_outlined,
+                            color: Colors.white38),
                   ),
-                  onChanged: _searchCommunes,
+                  onChanged: _onCommuneChanged,
+                  validator: (v) =>
+                      _selectedCommuneId == null ? 'Sélectionnez une commune' : null,
                 ),
                 if (_communes.isNotEmpty)
                   Container(
@@ -300,16 +438,91 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             style: const TextStyle(
                                 color: Colors.white, fontSize: 13),
                           ),
+                          onTap: () => _onCommuneSelected(c),
+                        );
+                      },
+                    ),
+                  ),
+                const SizedBox(height: 16),
+
+                // ── Rue (autocomplete via api-adresse.data.gouv.fr) ───────────
+                _buildLabel(
+                  _selectedCommuneId == null
+                      ? 'Rue (sélectionnez d\'abord une commune)'
+                      : 'Rue *',
+                ),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _rueCtrl,
+                  enabled: _selectedCommuneId != null,
+                  style: TextStyle(
+                    color: _selectedCommuneId != null
+                        ? Colors.white
+                        : Colors.white38,
+                  ),
+                  decoration: _inputDecoration(
+                    _selectedCommuneId == null
+                        ? 'Sélectionnez d\'abord une commune'
+                        : 'Ex : 12 rue de la Paix',
+                    _searchingRue
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: _accent,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          )
+                        : const Icon(Icons.home_outlined, color: Colors.white38),
+                  ),
+                  onChanged: _onRueChanged,
+                  validator: (v) =>
+                      v == null || v.trim().isEmpty ? 'Rue requise' : null,
+                ),
+                // Suggestions de rues
+                if (_ruesSuggestions.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(top: 4),
+                    decoration: BoxDecoration(
+                      color: _surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _accent.withAlpha(76)),
+                    ),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _ruesSuggestions.length,
+                      itemBuilder: (context, index) {
+                        final rue = _ruesSuggestions[index];
+                        return ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.place_outlined,
+                              color: Colors.white38, size: 16),
+                          title: Text(
+                            rue,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 13),
+                          ),
                           onTap: () {
                             setState(() {
-                              _communeCtrl.text =
-                                  '${c['nom_commune']} (${c['cp_commune']})';
-                              _selectedCommuneId = c['id_commune'] as int?;
-                              _communes = [];
+                              _rueCtrl.text    = rue;
+                              _ruesSuggestions = [];
                             });
                           },
                         );
                       },
+                    ),
+                  ),
+                // Note si API adresse indisponible
+                if (_rueApiError && _selectedCommuneId != null)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      '⚠️ API adresse indisponible — saisie manuelle libre',
+                      style: TextStyle(color: Colors.orange, fontSize: 11),
                     ),
                   ),
                 const SizedBox(height: 16),
@@ -338,6 +551,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       () => _obscureConfirmPassword = !_obscureConfirmPassword),
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Requis';
+                    if (v != _passwordCtrl.text) {
+                      return 'Les mots de passe ne correspondent pas';
+                    }
                     return null;
                   },
                 ),
@@ -476,7 +692,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String hint, Icon prefixIcon) {
+  InputDecoration _inputDecoration(String hint, Widget prefixIcon) {
     return InputDecoration(
       hintText: hint,
       hintStyle: const TextStyle(color: Colors.white24),

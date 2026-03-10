@@ -29,4 +29,8 @@ class ApiConfig {
   static const String favoris      = '$_projectPath/api/favoris.php';
   static const String reservations = '$_projectPath/api/get_reservations.php';
   static const String calcCost     = '$_projectPath/api/calculate_reservation_cost.php';
+
+  // ── API publique française (autocomplete adresses) ─────────────────────────
+  /// Pas de clé API nécessaire — usage libre.
+  static const String adresseGouv = 'https://api-adresse.data.gouv.fr/search/';
 }
