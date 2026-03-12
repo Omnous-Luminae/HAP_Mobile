@@ -14,38 +14,51 @@ Toutes les fonctionnalités d’administration, de gestion ou modération resten
 3.1 Accueil
 Champ de recherche (texte) :
 Saisie d’adresse, ville ou mot-clé.
+
 Icône loupe (bouton): valide la recherche, redirige vers Résultats.
+
 Carte interactive (OpenStreetMap intégrée) :
 Pins interactifs : tap = aperçu du bien (popup image+titre+boutons).
 Bouton “Ma position” (icône cible) : recadre la carte sur l’utilisateur.
 Bouton “Filtrer autour de moi” : ouvre un slider pour choisir le rayon.
+
 Slider “Rayon” (0–50 km) :
 Glissière gauche/droite, change en temps réel le rayon de recherche autour de soi, modifie affichage des biens/services sur la carte.
+
 Cartes catégories (Locations, Événements, Services, autres…) :
 Appui = filtre instantané et affichage des résultats de la catégorie sélectionnée.
+
 Bandeaux ou tuiles infos/notifications :
 Texte explicatif et bouton “fermer” (croix).
 
 3.2 Recherche & Filtres
 Champs texte :
 Adresse/localisation libre.
+
 Cases à cocher :
+
 Types de bien : appartement, maison, studio…
+
 Services inclus : wifi, parking, animaux acceptés, etc.
 Chaque appui sélectionne/désélectionne l’option (état visible).
+
 Sliders :
 Prix minimum/maximum.
 Surface minimum/maximum.
 Rayon (si pas déjà choisi à l’accueil).
+
 Bouton “Rechercher” :
 Lance la recherche avec les critères sélectionnés.
+
 Toggle “Affichage liste/carte” (switch ou segment button) :
 Permute l’affichage des résultats (liste <-> carte).
 
 3.3 Résultats
 Cartes/tiles de résultats :
 Tap sur une carte : affiche la fiche détail du bien.
+
 Bouton “Réserver” : ouvre l’écran réservation du bien sélectionné.
+
 Icône “Favoris” (cœur) : ajouter/retirer ce bien des favoris de l’utilisateur (état cœur plein/vide).
 Infobulle “Aucun résultat” si besoin
 
@@ -54,12 +67,13 @@ Galerie photo (carrousel horizontal) :
 Slide à gauche/droite (ou flèches) pour parcourir les images.
 Bouton “Itinéraire” (petite carte/icône voiture) :
 Ouvre la navigation dans l’app ou via Maps/Waze vers l’adresse du bien.
+
 Bouton “Réserver” :
 Passe à l’écran de réservation avec le bien prérempli.
-Bouton “Partager” :
-Ouvre les options natives de partage du téléphone (lien vers l’annonce, réseaux sociaux, etc.).
+
 Section équipements/services :
 Liste à puces ou avec icônes cochées/non cochées selon la présence des équipements.
+
 Section avis et notes :
 Affichage des notes/étoiles.
 Si l’utilisateur a réservé : bouton “Déposer un avis” qui ouvre formulaire avec slider étoiles + champ texte + bouton “Envoyer”.
@@ -68,10 +82,13 @@ Bouton retour : navigation vers la page précédente.
 3.5 Réservation
 Sélecteurs de date (allée/retour ou plage de date) :
 Tap = ouvre calendrier natif, sélection de dates.
+
 Stepper nombre de personnes (+ / -) :
 Boutons “+” ou “-” pour incrémenter/décrémenter le nombre.
+
 Cases à cocher options :
 Ménage, assurance, location de draps… (ajoute/supprime options à la réservation).
+
 Bouton “Valider” :
 Affiche le récapitulatif, puis confirme la réservation.
 Bouton “Annuler” : retourne à la fiche bien.
@@ -84,38 +101,37 @@ Bouton “Annuler” (si réservation future) : ouvre dialogue de confirmation
 3.7 Profil
 Champs texte éditables : nom, prénom, mail, téléphone, etc.
 Tap = édition possible, clavier natif.
+
 Bouton “Modifier” :
 Passe l’écran en mode édition.
 Bouton “Enregistrer” :
 Sauvegarde modifications sur le serveur.
+
 Bouton “Déconnexion” :
 Déconnecte l’utilisateur, retour à l’écran de login.
+
 Bouton “Supprimer mon compte” :
 Ouvre une confirmation par dialogue ; si validée, supprime le compte.
 
 3.8 Services / Événements
 Liste filtrable par distance (slider rayon).
 Bouton “Participer/S’inscrire” : ajoute l’utilisateur à l’événement/service, état modifié (inscrit/non inscrit).
+
 Bouton “Créer une demande” (pour utilisateurs habilités seulement) :
 Ouvre un formulaire spécifique.
 Toggle d’affichage carte/liste
 
 3.9 Paramètres
 Cases à cocher :
-Notifications push, consentement données, autres options diverses.
+consentement données, autres options diverses.
 Activation/désactivation prise en compte instantanément.
-Switch ou Dropdown de langue.
 Bouton “Réinitialiser”/“Vider le cache” :
 Ouvre une confirmation ; réalise l'action.
 Bouton “Retour”/navigation
 
-4. Fonctionnalités non incluses sur mobile
-Absence stricte de toute gestion ou modération :
-Aucun bouton, menu, lien ou espace d’administration sur mobile.
-Aucune messagerie :
-Ni sur la version web ni la version mobile par défaut.
 
-5. Technologies principales
+
+4. Technologies principales
 Flutter & Dart (mobile)
 APIs web mutualisées PHP/MySQL
 Géolocalisation native (geolocator)
