@@ -5,7 +5,9 @@ Son but principal : permettre à l’utilisateur de chercher, réserver et gére
 Elle interagit en HTTP avec le backend PHP/MySQL (APIs existantes + logicielle métier du projet web), avec plusieurs adaptations pour garantir la persistance locale, la navigation mobile et l'exploitation du GPS natif.
 
 2. Parcours utilisateur & modules
+   
 2.1 Authentification
+
 a) LoginScreen
 Ouverture : Formulaire email / mot de passe, bouton « Se connecter », liens « S’inscrire » & « Mot de passe oublié ? »
 Saisie & clic « Se connecter » :
@@ -20,6 +22,7 @@ Clic « Mot de passe oublié » : Ouvre ForgotPasswordScreen
 **Comportements automatiques **:
 Si déjà connecté : redirige sur Accueil
 Regénère automatiquement l’ID session lors de la connexion
+
 b) InscriptionScreen
 Formulaire en 5 étapes (Stepper)
 À chaque clic “Suivant” :
@@ -28,10 +31,15 @@ Persiste tous les champs dans un model d’état (Riverpod ou Provider + shared_
 Si l’app passe en arrière-plan, tout l’état doit être restauré au retour
 À chaque step :
 Step 1 : choix persona (particulier/entreprise)
+
 Step 2 : Informations persos, vérifie majorité (date de naissance)
+
 Step 3 : Adresse autocomplete (API publique) – Suggestions affichées au fil de la saisie, clic => préremplit automatiquement les champs
+
 Step 4 (si entreprise) : Entrée SIRET + bouton « vérifier » (contrôle Luhn)
+
 Step 5 : Mot de passe (local et server-side : min 8 caractères, maj, min, chiffre, spécial), RGPD à cocher, captcha mathématique
+
 Clic “Valider” :
 POST à api/register.php (form-data, token CSRF)
 Loader + désactivation des champs
@@ -40,6 +48,7 @@ Succès : Snackbar + redirige auto vers LoginScreen, supprime l’état temporai
 Erreur : message explicite si unique, générique sinon
 En cas de retour à une étape antérieure puis retour à l’avant, l’état saisi DOIT être conservé
 L’app doit empêcher la perte de données en cas de crash/app kill/rotation écran.
+
 c) ForgotPasswordScreen
 Champ email, bouton “Envoyer”
 Saisie e-mail → vérifie format localement
@@ -47,6 +56,7 @@ POST API, loader
 Affichage: "Si ce mail existe, un lien de réinitialisation vous a été envoyé"
 En local (dev : XAMPP), lien affiché directement
 Redirige vers ResetPasswordScreen si succès & clic
+
 d) ResetPasswordScreen
 Deux champs mot de passe + confirmation, validation côté Flutter (avant API) sur longueur/correspondance
 Bouton “Réinitialiser”
