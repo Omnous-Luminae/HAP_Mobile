@@ -88,13 +88,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _searchingCommune = true);
     _communeDebounce = Timer(const Duration(milliseconds: 300), () async {
       try {
-        final data = await ApiService.get(
+        final response = await ApiService.get(
           ApiConfig.communes,
           params: {'q': query},
-        ) as List<dynamic>;
+        );
+
+        List<dynamic> rows = const [];
+        if (response is List<dynamic>) {
+          // Compatibilite avec un endpoint qui renvoie directement une liste.
+          rows = response;
+        } else if (response is Map<String, dynamic>) {
+          // Format standard actuel: { success: true, data: [...] }
+          final rawData = response['data'];
+          if (rawData is List<dynamic>) {
+            rows = rawData;
+          }
+        }
+
         if (mounted) {
           setState(() {
-            _communes         = data.cast<Map<String, dynamic>>();
+            _communes = rows
+                .whereType<Map<String, dynamic>>()
+                .toList(growable: false);
             _searchingCommune = false;
           });
         }
@@ -108,7 +123,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void _onCommuneSelected(Map<String, dynamic> c) {
     setState(() {
       _communeCtrl.text  = '${c['nom_commune']} (${c['cp_commune']})';
-      _selectedCommuneId = c['id_commune'] as int?;
+      _selectedCommuneId = c['id_commune'] is int
+          ? c['id_commune'] as int
+          : int.tryParse('${c['id_commune']}');
       _selectedCodeInsee = c['code_insee'] as String?;
       _communes          = [];
       // Réinitialiser la rue quand la commune change

@@ -27,7 +27,9 @@ function hapApplyCors(array $methods = ['GET', 'POST', 'OPTIONS']): void
         $allowedOrigins = $defaultOrigins;
     }
 
-    if ($origin !== '' && in_array($origin, $allowedOrigins, true)) {
+    $originAllowed = hapIsAllowedOrigin($origin, $allowedOrigins);
+
+    if ($originAllowed) {
         header('Access-Control-Allow-Origin: ' . $origin);
         header('Vary: Origin');
     }
@@ -40,4 +42,37 @@ function hapApplyCors(array $methods = ['GET', 'POST', 'OPTIONS']): void
         http_response_code(204);
         exit;
     }
+}
+
+/**
+ * @param array<int, string> $allowedOrigins
+ */
+function hapIsAllowedOrigin(string $origin, array $allowedOrigins): bool
+{
+    if ($origin === '') {
+        return false;
+    }
+
+    if (in_array($origin, $allowedOrigins, true)) {
+        return true;
+    }
+
+    return hapIsLocalDevOrigin($origin);
+}
+
+function hapIsLocalDevOrigin(string $origin): bool
+{
+    $parts = parse_url($origin);
+    if (!is_array($parts)) {
+        return false;
+    }
+
+    $host = $parts['host'] ?? '';
+    $scheme = $parts['scheme'] ?? '';
+
+    if ($scheme !== 'http' && $scheme !== 'https') {
+        return false;
+    }
+
+    return $host === 'localhost' || $host === '127.0.0.1';
 }

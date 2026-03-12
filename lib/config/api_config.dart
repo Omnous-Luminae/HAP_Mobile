@@ -1,34 +1,39 @@
 /// api_config.dart — URLs des endpoints PHP de l'API HAP Mobile
 ///
-/// Modifiez [baseUrl] selon l'environnement :
-///   - Émulateur Android : 10.0.2.2 pointe vers localhost de la machine hôte
-///   - Simulateur iOS    : localhost
-///   - Production        : votre domaine réel
+/// Par défaut, l'API pointe vers un serveur PHP local lancé sur le port 8080.
+/// Vous pouvez surcharger la base URL à l'exécution avec :
+///   flutter run --dart-define=API_BASE_URL=http://<host>:<port>
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiConfig {
   // ── URL de base ────────────────────────────────────────────────────────────
-  /// Émulateur Android (10.0.2.2 = localhost de la machine hôte)
-  static const String baseUrl = 'http://10.0.2.2:8080';
+  static const String _envBaseUrl = String.fromEnvironment('API_BASE_URL');
 
-  // static const String baseUrl = 'http://localhost:8080'; // Simulateur iOS
-  // static const String baseUrl = 'https://ton-domaine.fr'; // Production
+  /// Base URL calculée à l'exécution :
+  /// - web local   -> localhost:8080
+  /// - mobile/emul -> 10.0.2.2:8080
+  /// - surcharge   -> --dart-define=API_BASE_URL=...
+  static String get baseUrl {
+    if (_envBaseUrl.isNotEmpty) return _envBaseUrl;
+    return kIsWeb ? 'http://localhost:8080' : 'http://10.0.2.2:8080';
+  }
 
-  /// Préfixe commun au projet PHP
-  static const String _projectPath =
-      '$baseUrl/Projet_HAP(House_After_Party)';
+  /// Préfixe commun de l'API dans ce dépôt.
+  static String get _projectPath => '$baseUrl/php_api';
 
   // ── Auth mobile ────────────────────────────────────────────────────────────
-  static const String login    = '$_projectPath/api/mobile/auth_login.php';
-  static const String register = '$_projectPath/api/mobile/auth_register.php';
-  static const String me       = '$_projectPath/api/mobile/auth_me.php';
-  static const String logout   = '$_projectPath/api/mobile/auth_logout.php';
+  static String get login => '$_projectPath/api/mobile/auth_login.php';
+  static String get register => '$_projectPath/api/mobile/auth_register.php';
+  static String get me => '$_projectPath/api/mobile/auth_me.php';
+  static String get logout => '$_projectPath/api/mobile/auth_logout.php';
 
   // ── Ressources ─────────────────────────────────────────────────────────────
-  static const String biens        = '$_projectPath/api/mobile/get_biens_mobile.php';
-  static const String communes     = '$_projectPath/api/search_communes.php';
-  static const String favoris      = '$_projectPath/api/favoris.php';
-  static const String reservations = '$_projectPath/api/get_reservations.php';
-  static const String calcCost     = '$_projectPath/api/calculate_reservation_cost.php';
+  static String get biens => '$_projectPath/api/mobile/get_biens_mobile.php';
+  static String get communes => '$_projectPath/api/search_communes.php';
+  static String get favoris => '$_projectPath/api/favoris.php';
+  static String get reservations => '$_projectPath/api/get_reservations.php';
+  static String get calcCost => '$_projectPath/api/calculate_reservation_cost.php';
 
   // ── API publique française (autocomplete adresses) ─────────────────────────
   /// Pas de clé API nécessaire — usage libre.

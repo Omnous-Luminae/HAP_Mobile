@@ -31,7 +31,7 @@ class AuthService {
     final data = await ApiService.post(ApiConfig.login, {
       'email': email,
       'password': password,
-    }) as Map<String, dynamic>;
+    }, includeAuth: false, clearSessionOn401: false) as Map<String, dynamic>;
 
     if (data['success'] == true) {
       await saveSession(
@@ -52,8 +52,12 @@ class AuthService {
   static Future<Map<String, dynamic>> register(
     Map<String, dynamic> fields,
   ) async {
-    final data = await ApiService.post(ApiConfig.register, fields)
-        as Map<String, dynamic>;
+    final data = await ApiService.post(
+      ApiConfig.register,
+      fields,
+      includeAuth: false,
+      clearSessionOn401: false,
+    ) as Map<String, dynamic>;
 
     if (data['success'] == true) {
       await saveSession(

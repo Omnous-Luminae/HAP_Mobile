@@ -27,12 +27,14 @@ class ApiService {
   static Future<dynamic> get(
     String url, {
     Map<String, String>? params,
+    bool includeAuth = true,
+    bool clearSessionOn401 = true,
   }) async {
     final uri = Uri.parse(url).replace(queryParameters: params);
-    final headers = await _buildHeaders();
+    final headers = await _buildHeaders(includeAuth: includeAuth);
 
     final response = await http.get(uri, headers: headers);
-    return _handleResponse(response);
+    return _handleResponse(response, clearSessionOn401: clearSessionOn401);
   }
 
   /// Effectue une requête POST vers [url] avec [body] encodé en JSON.
@@ -41,24 +43,29 @@ class ApiService {
   /// Lance une [Exception] en cas d'erreur HTTP.
   static Future<dynamic> post(
     String url,
-    Map<String, dynamic> body,
+    Map<String, dynamic> body, {
+    bool includeAuth = true,
+    bool clearSessionOn401 = true,
+  }
   ) async {
     final uri = Uri.parse(url);
-    final headers = await _buildHeaders();
+    final headers = await _buildHeaders(includeAuth: includeAuth);
 
     final response = await http.post(
       uri,
       headers: headers,
       body: jsonEncode(body),
     );
-    return _handleResponse(response);
+    return _handleResponse(response, clearSessionOn401: clearSessionOn401);
   }
 
   // ── Helpers privés ─────────────────────────────────────────────────────────
 
   /// Construit les headers communs (Content-Type + Authorization).
-  static Future<Map<String, String>> _buildHeaders() async {
-    final token = await getToken();
+  static Future<Map<String, String>> _buildHeaders({
+    bool includeAuth = true,
+  }) async {
+    final token = includeAuth ? await getToken() : null;
     return {
       'Content-Type': 'application/json; charset=utf-8',
       if (token != null) 'Authorization': 'Bearer $token',
@@ -70,15 +77,27 @@ class ApiService {
   /// - 200 / 201 → retourne le JSON décodé
   /// - 401       → efface la session locale et lance une [UnauthorizedException]
   /// - autre     → lance une [Exception] avec le code et le message d'erreur
-  static dynamic _handleResponse(http.Response response) {
+  static dynamic _handleResponse(
+    http.Response response, {
+    bool clearSessionOn401 = true,
+  }) {
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body);
     }
 
     if (response.statusCode == 401) {
-      // Token invalide ou expiré : on efface la session locale
-      _clearLocalSession();
-      throw UnauthorizedException('Session expirée. Veuillez vous reconnecter.');
+      if (clearSessionOn401) {
+        // Token invalide ou expiré : on efface la session locale
+        _clearLocalSession();
+      }
+
+      String message = 'Non autorisé';
+      try {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        message = body['message'] as String? ?? message;
+      } catch (_) {}
+
+      throw UnauthorizedException(message);
     }
 
     // Tente de lire le message d'erreur renvoyé par l'API

@@ -19,7 +19,7 @@ hapApplyCors(['POST', 'OPTIONS']);
 // ── Chargement des dépendances ─────────────────────────────────────────────
 require_once __DIR__ . '/../../config/db.php'; // NOSONAR - API procédurale sans autoloader
 require_once __DIR__ . '/../../config/jwt_config.php'; // NOSONAR - API procédurale sans autoloader
-$jwtHelperPath = __DIR__ . '/../../classes/JWTHelper.php';
+$jwtHelperPath = __DIR__ . '/../../classes/' . 'JWTHelper.php';
 require_once $jwtHelperPath; // NOSONAR - API procédurale sans autoloader
 
 // ── Lecture du corps JSON ──────────────────────────────────────────────────
@@ -59,7 +59,40 @@ $stmt = $pdo->prepare(
 $stmt->execute([':email' => $email]);
 $locataire = $stmt->fetch(PDO::FETCH_ASSOC);
 
-if (!$locataire || !password_verify($password, $locataire['password_locataire'])) {
+if (!$locataire) {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Email ou mot de passe incorrect.']);
+    exit;
+}
+
+$storedPassword = (string) $locataire['password_locataire'];
+$isPasswordValid = false;
+
+// Cas standard: mot de passe deja hashé (bcrypt/argon2).
+if (password_verify($password, $storedPassword)) {
+    $isPasswordValid = true;
+}
+
+// Compatibilite legacy: anciennes donnees avec mot de passe en clair.
+if (!$isPasswordValid && hash_equals($storedPassword, $password)) {
+    $isPasswordValid = true;
+
+    // Migration transparente vers un hash sécurisé au prochain login reussi.
+    try {
+        $newHash = password_hash($password, PASSWORD_BCRYPT);
+        $stmtUpdate = $pdo->prepare(
+            'UPDATE Locataire SET password_locataire = :hash WHERE id_locataire = :id'
+        );
+        $stmtUpdate->execute([
+            ':hash' => $newHash,
+            ':id' => (int) $locataire['id_locataire'],
+        ]);
+    } catch (PDOException $e) {
+        // Ne bloque pas la connexion si la migration de hash echoue.
+    }
+}
+
+if (!$isPasswordValid) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Email ou mot de passe incorrect.']);
     exit;

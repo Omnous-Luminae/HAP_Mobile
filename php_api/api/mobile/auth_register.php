@@ -22,7 +22,7 @@ hapApplyCors(['POST', 'OPTIONS']);
 // ── Chargement des dépendances ─────────────────────────────────────────────
 require_once __DIR__ . '/../../config/db.php'; // NOSONAR - API procédurale sans autoloader
 require_once __DIR__ . '/../../config/jwt_config.php'; // NOSONAR - API procédurale sans autoloader
-$jwtHelperPath = __DIR__ . '/../../classes/JWTHelper.php';
+$jwtHelperPath = __DIR__ . '/../../classes/' . 'JWTHelper.php';
 require_once $jwtHelperPath; // NOSONAR - API procédurale sans autoloader
 
 // ── Lecture du corps JSON ──────────────────────────────────────────────────
