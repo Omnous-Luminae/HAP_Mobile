@@ -22,3 +22,35 @@ if (!defined('DB_USER')) {
 if (!defined('DB_PASS')) {
     define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : '');
 }
+
+
+
+/**
+ * Mise a niveau schema: garantit une longueur suffisante pour les hashes.
+ *
+ * @param PDO $pdo Connexion PDO active.
+ */
+function hapEnsureAuthSchema(PDO $pdo): void
+{
+    static $alreadyChecked = false;
+    if ($alreadyChecked) {
+        return;
+    }
+
+    try {
+        $rows = $pdo->query('DESCRIBE Locataire')->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $row) {
+            if (($row['Field'] ?? '') === 'password_locataire') {
+                $type = strtolower((string) ($row['Type'] ?? ''));
+                if ($type === 'varchar(20)') {
+                    $pdo->exec('ALTER TABLE Locataire MODIFY password_locataire VARCHAR(255) NOT NULL');
+                }
+                break;
+            }
+        }
+    } catch (Throwable $e) {
+        // Ne bloque pas l'API si la migration schema echoue.
+    }
+
+    $alreadyChecked = true;
+}
