@@ -28,18 +28,11 @@
  */
 
 // ── En-têtes CORS + JSON ───────────────────────────────────────────────────
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Content-Type: application/json; charset=utf-8');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
-    exit;
-}
+require_once __DIR__ . '/../../config/cors.php'; // NOSONAR - API procédurale sans autoloader
+hapApplyCors(['GET', 'OPTIONS']);
 
 // ── Chargement de la configuration BDD ────────────────────────────────────
-require_once __DIR__ . '/../../config/db.php';
+require_once __DIR__ . '/../../config/db.php'; // NOSONAR - API procédurale sans autoloader
 
 // ── Lecture et nettoyage des paramètres GET ────────────────────────────────
 $communeId    = isset($_GET['commune_id'])      ? (int) $_GET['commune_id']      : null;
@@ -137,7 +130,7 @@ if ($noteMin !== null) {
     $havingParams[':note_min'] = $noteMin;
 }
 
-$havingClause = count($having) > 0 ? 'HAVING ' . implode(' AND ', $having) : '';
+$havingClause = !empty($having) ? 'HAVING ' . implode(' AND ', $having) : '';
 
 // ── Tri ────────────────────────────────────────────────────────────────────
 $orderBy = match ($sort) {

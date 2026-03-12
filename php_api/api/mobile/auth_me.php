@@ -1,4 +1,5 @@
 <?php
+
 /**
  * auth_me.php — Endpoint de récupération du profil connecté (JWT)
  *
@@ -12,20 +13,13 @@
  */
 
 // ── En-têtes CORS + JSON ───────────────────────────────────────────────────
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Content-Type: application/json; charset=utf-8');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
-    exit;
-}
+require_once __DIR__ . '/../../config/cors.php'; // NOSONAR - API procédurale sans autoloader
+hapApplyCors(['GET', 'OPTIONS']);
 
 // ── Chargement des dépendances ─────────────────────────────────────────────
-require_once __DIR__ . '/../../config/db.php';
-require_once __DIR__ . '/../../config/jwt_config.php';
-require_once __DIR__ . '/../../classes/JWTHelper.php';
+require_once __DIR__ . '/../../config/db.php'; // NOSONAR - API procédurale sans autoloader
+require_once __DIR__ . '/../../config/jwt_config.php'; // NOSONAR - API procédurale sans autoloader
+require_once __DIR__ . '/../../classes/JWTHelper.php'; // NOSONAR - API procédurale sans autoloader
 
 // ── Extraction du token depuis le header Authorization ─────────────────────
 $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
@@ -45,7 +39,7 @@ if (empty($authHeader) || !preg_match('/^Bearer\s+(.+)$/i', $authHeader, $matche
 $token = $matches[1];
 
 // ── Vérification et décodage du JWT ───────────────────────────────────────
-$payload = JWTHelper::decode($token, JWT_SECRET);
+$payload = \JWTHelper::decode($token, JWT_SECRET);
 if ($payload === false) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Token invalide ou expiré.']);

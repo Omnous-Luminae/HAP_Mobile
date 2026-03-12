@@ -43,31 +43,24 @@ class JWTHelper
      */
     public static function decode(string $token, string $secret)
     {
+        $decodedPayload = false;
         $parts = explode('.', $token);
-        if (count($parts) !== 3) {
-            return false;
+        if (count($parts) === 3) {
+            [$headerEncoded, $payloadEncoded, $signatureReceived] = $parts;
+
+            // Vérification de la signature
+            $expectedSignature = self::sign($headerEncoded . '.' . $payloadEncoded, $secret);
+            if (hash_equals($expectedSignature, $signatureReceived)) {
+                // Décodage du payload
+                $payload = json_decode(self::base64UrlDecode($payloadEncoded), true);
+                // Vérification conjointe de la structure et de l'expiration
+                if (is_array($payload) && (!isset($payload['exp']) || $payload['exp'] >= time())) {
+                    $decodedPayload = $payload;
+                }
+            }
         }
 
-        [$headerEncoded, $payloadEncoded, $signatureReceived] = $parts;
-
-        // Vérification de la signature
-        $expectedSignature = self::sign($headerEncoded . '.' . $payloadEncoded, $secret);
-        if (!hash_equals($expectedSignature, $signatureReceived)) {
-            return false;
-        }
-
-        // Décodage du payload
-        $payload = json_decode(self::base64UrlDecode($payloadEncoded), true);
-        if (!is_array($payload)) {
-            return false;
-        }
-
-        // Vérification de l'expiration
-        if (isset($payload['exp']) && $payload['exp'] < time()) {
-            return false;
-        }
-
-        return $payload;
+        return $decodedPayload;
     }
 
     /**

@@ -1,4 +1,5 @@
 <?php
+
 /**
  * auth_register.php — Endpoint d'inscription mobile (JWT)
  *
@@ -15,20 +16,14 @@
  */
 
 // ── En-têtes CORS + JSON ───────────────────────────────────────────────────
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Content-Type: application/json; charset=utf-8');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
-    exit;
-}
+require_once __DIR__ . '/../../config/cors.php'; // NOSONAR - API procédurale sans autoloader
+hapApplyCors(['POST', 'OPTIONS']);
 
 // ── Chargement des dépendances ─────────────────────────────────────────────
-require_once __DIR__ . '/../../config/db.php';
-require_once __DIR__ . '/../../config/jwt_config.php';
-require_once __DIR__ . '/../../classes/JWTHelper.php';
+require_once __DIR__ . '/../../config/db.php'; // NOSONAR - API procédurale sans autoloader
+require_once __DIR__ . '/../../config/jwt_config.php'; // NOSONAR - API procédurale sans autoloader
+$jwtHelperPath = __DIR__ . '/../../classes/JWTHelper.php';
+require_once $jwtHelperPath; // NOSONAR - API procédurale sans autoloader
 
 // ── Lecture du corps JSON ──────────────────────────────────────────────────
 $input = json_decode(file_get_contents('php://input'), true);
@@ -118,7 +113,7 @@ $payload = [
     'exp'          => $now + JWT_EXPIRY,
 ];
 
-$token = JWTHelper::encode($payload, JWT_SECRET);
+$token = \JWTHelper::encode($payload, JWT_SECRET);
 
 // ── Réponse ────────────────────────────────────────────────────────────────
 http_response_code(201);

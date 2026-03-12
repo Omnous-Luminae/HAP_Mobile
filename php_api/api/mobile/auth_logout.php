@@ -1,4 +1,5 @@
 <?php
+
 /**
  * auth_logout.php — Endpoint de déconnexion mobile (JWT stateless)
  *
@@ -16,20 +17,13 @@
  */
 
 // ── En-têtes CORS + JSON ───────────────────────────────────────────────────
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Content-Type: application/json; charset=utf-8');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
-    exit;
-}
+require_once __DIR__ . '/../../config/cors.php'; // NOSONAR - API procédurale sans autoloader
+hapApplyCors(['POST', 'OPTIONS']);
 
 // ── Chargement des dépendances ─────────────────────────────────────────────
-require_once __DIR__ . '/../../config/db.php';
-require_once __DIR__ . '/../../config/jwt_config.php';
-require_once __DIR__ . '/../../classes/JWTHelper.php';
+require_once __DIR__ . '/../../config/db.php'; // NOSONAR - API procédurale sans autoloader
+require_once __DIR__ . '/../../config/jwt_config.php'; // NOSONAR - API procédurale sans autoloader
+require_once __DIR__ . '/../../classes/JWTHelper.php'; // NOSONAR - API procédurale sans autoloader
 
 // ── Extraction et vérification du token ───────────────────────────────────
 $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
@@ -40,7 +34,7 @@ if (empty($authHeader) && function_exists('apache_request_headers')) {
 
 if (!empty($authHeader) && preg_match('/^Bearer\s+(.+)$/i', $authHeader, $matches)) {
     $token   = $matches[1];
-    $payload = JWTHelper::decode($token, JWT_SECRET);
+    $payload = \JWTHelper::decode($token, JWT_SECRET);
 
     if ($payload !== false) {
         // ── Ajout du token dans la blacklist ──────────────────────────────
