@@ -29,13 +29,27 @@ class ApiConfig {
   static String get logout => '$_projectPath/api/mobile/auth_logout.php';
 
   // ── Ressources ─────────────────────────────────────────────────────────────
-  static String get biens => '$_projectPath/api/mobile/get_biens_mobile.php';
-  static String get communes => '$_projectPath/api/search_communes.php';
-  static String get favoris => '$_projectPath/api/favoris.php';
-  static String get reservations => '$_projectPath/api/get_reservations.php';
-  static String get calcCost => '$_projectPath/api/calculate_reservation_cost.php';
+  static String get biens            => '$_projectPath/api/mobile/get_biens_mobile.php';
+  static String get bienDetail       => '$_projectPath/api/mobile/get_bien_detail.php';
+  static String get communes         => '$_projectPath/api/search_communes.php';
+  static String get favoris          => '$_projectPath/api/favoris.php';
+  static String get disponibilites   => '$_projectPath/api/mobile/get_disponibilites.php';
+  static String get createReservation => '$_projectPath/api/mobile/create_reservation.php';
+  static String get mesReservations  => '$_projectPath/api/mobile/get_mes_reservations.php';
 
   // ── API publique française (autocomplete adresses) ─────────────────────────
   /// Pas de clé API nécessaire — usage libre.
   static const String adresseGouv = 'https://api-adresse.data.gouv.fr/search/';
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  /// Retourne l'URL complète d'une photo stockée sur le serveur PHP.
+  /// Gère les URLs relatives (chemin fichier) et absolues (http).
+  static String photoUrl(String? lienPhoto) {
+    if (lienPhoto == null || lienPhoto.isEmpty) return '';
+    if (lienPhoto.startsWith('http://') || lienPhoto.startsWith('https://')) {
+      return lienPhoto;
+    }
+    return '$baseUrl/$lienPhoto';
+  }
 }

@@ -48,6 +48,9 @@ try {
     exit;
 }
 
+// ── Migration schema (varchar(20) → varchar(255)) ──────────────────────────
+hapEnsureAuthSchema($pdo);
+
 // ── Recherche du locataire ─────────────────────────────────────────────────
 $stmt = $pdo->prepare(
     'SELECT id_locataire, nom_locataire, prenom_locataire, email_locataire,

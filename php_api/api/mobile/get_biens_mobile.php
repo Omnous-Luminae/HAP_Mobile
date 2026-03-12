@@ -133,11 +133,13 @@ if ($noteMin !== null) {
 $havingClause = !empty($having) ? 'HAVING ' . implode(' AND ', $having) : '';
 
 // ── Tri ────────────────────────────────────────────────────────────────────
+// Note: aggregate aliases (note_moyenne) cannot be wrapped in functions in ORDER BY in MySQL.
+// Use the alias directly; NULLs sort last in DESC naturally.
 $orderBy = match ($sort) {
     'prix_asc'  => 'ORDER BY tarif_semaine ASC',
     'prix_desc' => 'ORDER BY tarif_semaine DESC',
     'recents'   => 'ORDER BY b.id_biens DESC',
-    default     => 'ORDER BY COALESCE(note_moyenne, 0) DESC',
+    default     => 'ORDER BY note_moyenne DESC',
 };
 
 // ── Sous-requête commune (SELECT principal) ────────────────────────────────
@@ -153,14 +155,14 @@ $selectSql = "
         tb.designation_type_bien,
         c.nom_commune,
         c.cp_commune,
-        c.lat_commune,
-        c.long_commune,
+        c.latitude_commune AS lat_commune,
+        c.longitude_commune  AS long_commune,
         (SELECT p.lien_photo
            FROM Photos p
           WHERE p.id_biens = b.id_biens
           LIMIT 1) AS photo,
         ROUND(AVG(r.rating), 1)  AS note_moyenne,
-        COUNT(DISTINCT r.id_avis) AS nb_avis,
+        COUNT(DISTINCT r.id_review) AS nb_avis,
         COALESCE(
             (SELECT AVG(t.tarif)
                FROM Tarif t
@@ -177,7 +179,7 @@ $selectSql = "
         b.id_biens, b.nom_biens, b.rue_biens, b.superficie_biens,
         b.description_biens, b.animal_biens, b.nb_couchage,
         tb.designation_type_bien, c.nom_commune, c.cp_commune,
-        c.lat_commune, c.long_commune
+        c.latitude_commune, c.longitude_commune
     $havingClause
 ";
 

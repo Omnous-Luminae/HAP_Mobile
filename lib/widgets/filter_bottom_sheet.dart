@@ -66,12 +66,16 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
 
   // ── Types de biens disponibles (sera idéalement chargé depuis l'API) ──────
   static const List<Map<String, dynamic>> _typesDesBiens = [
-    {'id': 1, 'label': 'Villa'},
-    {'id': 2, 'label': 'Appartement'},
-    {'id': 3, 'label': 'Maison'},
-    {'id': 4, 'label': 'Chalet'},
-    {'id': 5, 'label': 'Studio'},
-    {'id': 6, 'label': 'Loft'},
+    {'id': 1, 'label': 'Appartement'},
+    {'id': 2, 'label': 'Maison'},
+    {'id': 3, 'label': 'Villa'},
+    {'id': 4, 'label': 'Studio'},
+    {'id': 5, 'label': 'Chalet'},
+    {'id': 6, 'label': 'Bungalow'},
+    {'id': 7, 'label': 'Loft'},
+    {'id': 8, 'label': 'Penthouse'},
+    {'id': 9, 'label': 'Cottage'},
+    {'id': 10, 'label': 'Résidence de vacances'},
   ];
 
   // ── État local des filtres ────────────────────────────────────────────────

@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
 import 'providers/auth_provider.dart';
@@ -14,8 +15,13 @@ import 'screens/auth/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/bien_detail/bien_detail_screen.dart';
+import 'models/bien.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('fr_FR');
+
   runApp(
     // AuthProvider disponible dans tout l'arbre de widgets
     ChangeNotifierProvider(
@@ -45,6 +51,14 @@ final _router = GoRouter(
     GoRoute(
       path: '/home',
       builder: (context, state) => const HomeScreen(),
+    ),
+    GoRoute(
+      path: '/bien/:id',
+      builder: (context, state) {
+        final bien = state.extra as Bien?;
+        final id = int.tryParse(state.pathParameters['id'] ?? '') ?? 0;
+        return BienDetailScreen(id: id, initialBien: bien);
+      },
     ),
   ],
 );

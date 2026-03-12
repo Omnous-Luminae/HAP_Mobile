@@ -12,6 +12,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../models/bien.dart';
 import '../../models/filter_options.dart';
@@ -345,7 +346,7 @@ class _HomeScreenState extends State<HomeScreen> {
         return BienCard(
           bien: bien,
           onTap: () {
-            // TODO: naviguer vers l'écran de détail (Phase 3)
+            context.push('/bien/${bien.idBiens}', extra: bien);
           },
           onFavoriToggle: (isFav) async {
             // Toggle favori via API avec gestion d'erreur

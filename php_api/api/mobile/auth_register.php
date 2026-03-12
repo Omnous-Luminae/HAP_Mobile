@@ -70,6 +70,9 @@ try {
     exit;
 }
 
+// ── Migration schema (varchar(20) → varchar(255)) ──────────────────────────
+hapEnsureAuthSchema($pdo);
+
 // ── Vérification unicité de l'email ───────────────────────────────────────
 $stmt = $pdo->prepare('SELECT id_locataire FROM Locataire WHERE email_locataire = :email LIMIT 1');
 $stmt->execute([':email' => $email]);
