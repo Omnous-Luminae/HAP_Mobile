@@ -23,7 +23,24 @@ if (!defined('DB_PASS')) {
     define('DB_PASS', getenv('DB_PASS') !== false ? getenv('DB_PASS') : '');
 }
 
-
+function getPDO(): PDO {
+    static $pdo = null;
+    if ($pdo === null) {
+        try {
+            $pdo = new PDO(
+                'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8',
+                DB_USER,
+                DB_PASS,
+                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+            );
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['success' => false, 'message' => 'Erreur de connexion à la base de données.']);
+            exit;
+        }
+    }
+    return $pdo;
+}
 
 /**
  * Mise a niveau schema: garantit une longueur suffisante pour les hashes.

@@ -20,6 +20,7 @@ hapApplyCors(['GET', 'OPTIONS']);
 require_once __DIR__ . '/../../config/db.php'; // NOSONAR - API procédurale sans autoloader
 require_once __DIR__ . '/../../config/jwt_config.php'; // NOSONAR - API procédurale sans autoloader
 require_once __DIR__ . '/../../classes/JWTHelper.php'; // NOSONAR - API procédurale sans autoloader
+$pdo = getPDO();
 
 // ── Extraction du token depuis le header Authorization ─────────────────────
 $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
@@ -48,19 +49,6 @@ if ($payload === false) {
 
 $idLocataire = (int) ($payload['id_locataire'] ?? 0);
 
-// ── Connexion BDD ──────────────────────────────────────────────────────────
-try {
-    $pdo = new PDO(
-        'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8',
-        DB_USER,
-        DB_PASS,
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-    );
-} catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Erreur de connexion à la base de données.']);
-    exit;
-}
 
 // ── Récupération des infos complètes du locataire (avec commune) ───────────
 $stmt = $pdo->prepare(

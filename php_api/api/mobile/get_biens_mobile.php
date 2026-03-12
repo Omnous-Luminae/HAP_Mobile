@@ -33,6 +33,7 @@ hapApplyCors(['GET', 'OPTIONS']);
 
 // ── Chargement de la configuration BDD ────────────────────────────────────
 require_once __DIR__ . '/../../config/db.php'; // NOSONAR - API procédurale sans autoloader
+$pdo = getPDO();
 
 // ── Lecture et nettoyage des paramètres GET ────────────────────────────────
 $communeId    = isset($_GET['commune_id'])      ? (int) $_GET['commune_id']      : null;
@@ -51,19 +52,6 @@ $page         = max(1, (int) ($_GET['page']     ?? 1));
 $perPage      = min(50, max(1, (int) ($_GET['per_page'] ?? 10)));
 $offset       = ($page - 1) * $perPage;
 
-// ── Connexion BDD ──────────────────────────────────────────────────────────
-try {
-    $pdo = new PDO(
-        'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8',
-        DB_USER,
-        DB_PASS,
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-    );
-} catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Erreur de connexion à la base de données.']);
-    exit;
-}
 
 // ── Construction de la requête dynamique ───────────────────────────────────
 $where  = ['b.validated = 1', '(b.is_hidden = 0 OR b.is_hidden IS NULL)'];

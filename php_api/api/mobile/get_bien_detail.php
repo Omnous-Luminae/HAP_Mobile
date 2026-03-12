@@ -16,6 +16,7 @@ require_once __DIR__ . '/../../config/cors.php';
 hapApplyCors(['GET', 'OPTIONS']);
 
 require_once __DIR__ . '/../../config/db.php';
+$pdo = getPDO();
 
 $idBiens = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 if ($idBiens <= 0) {
@@ -24,18 +25,6 @@ if ($idBiens <= 0) {
     exit;
 }
 
-try {
-    $pdo = new PDO(
-        'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8',
-        DB_USER,
-        DB_PASS,
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-    );
-} catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Erreur de connexion à la base de données.']);
-    exit;
-}
 
 // ── Infos principales du bien ──────────────────────────────────────────────
 $stmtBien = $pdo->prepare("

@@ -24,6 +24,7 @@ hapApplyCors(['GET', 'OPTIONS']);
 require_once __DIR__ . '/../../config/db.php';
 require_once __DIR__ . '/../../config/jwt_config.php';
 require_once __DIR__ . '/../../classes/JWTHelper.php';
+$pdo = getPDO();
 
 // ── Auth JWT ───────────────────────────────────────────────────────────────
 $authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
@@ -47,19 +48,6 @@ if ($payload === false) {
 
 $idLocataire = (int) ($payload['id_locataire'] ?? 0);
 
-// ── Connexion BDD ──────────────────────────────────────────────────────────
-try {
-    $pdo = new PDO(
-        'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME . ';charset=utf8',
-        DB_USER,
-        DB_PASS,
-        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-    );
-} catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Erreur de connexion.']);
-    exit;
-}
 
 $stmt = $pdo->prepare("
     SELECT
