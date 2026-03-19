@@ -271,10 +271,9 @@ class _BienCardState extends State<BienCard>
     }
 
     // Construction de l'URL absolue si nécessaire
-    final photoUrl = bien.photo!.startsWith('http')
-        ? bien.photo!
-        : '${ApiConfig.baseUrl}/Projet_HAP(House_After_Party)/${bien.photo}';
+    final photoUrl = ApiConfig.photoUrl(bien.photo);
 
+    
     return CachedNetworkImage(
       imageUrl: photoUrl,
       height: 180,

@@ -55,6 +55,23 @@ class ReservationService {
     ) as Map<String, dynamic>;
   }
 
+    /// Annule une réservation "à venir".
+    /// /// Annule une réservation "à venir".
+static Future<void> cancelReservation({
+  required int idReservation,
+  required String token,
+}) async {
+  final response = await ApiService.post(
+    ApiConfig.cancelReservation,
+    {'id_reservation': idReservation},
+  ) as Map<String, dynamic>;
+
+  if (response['success'] != true) {
+    throw Exception(response['message'] ?? 'Annulation impossible.');
+  }
+}
+  
+
   /// Récupère toutes les réservations de l'utilisateur connecté.
   static Future<List<Reservation>> getMesReservations() async {
     final response = await ApiService.get(
@@ -67,3 +84,5 @@ class ReservationService {
         .toList();
   }
 }
+
+

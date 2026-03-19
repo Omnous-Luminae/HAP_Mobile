@@ -72,6 +72,9 @@ dependencies:
   # Effet de chargement squelette (shimmer)
   shimmer: ^3.0.0
 
+  # Géolocalisation pour la carte et les biens à proximité
+  geolocator: ^13.0.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -46,6 +46,7 @@
 				</dict>
 			</array>
 		</dict>
+		
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
@@ -66,5 +67,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>HAP Mobile utilise votre position pour afficher les biens près de vous.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>HAP Mobile utilise votre position pour afficher les biens près de vous.</string>
 </dict>
 </plist>

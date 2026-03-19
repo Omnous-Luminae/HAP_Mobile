@@ -32,24 +32,36 @@ class ApiConfig {
   static String get biens            => '$_projectPath/api/mobile/get_biens_mobile.php';
   static String get bienDetail       => '$_projectPath/api/mobile/get_bien_detail.php';
   static String get communes         => '$_projectPath/api/search_communes.php';
-  static String get favoris          => '$_projectPath/api/favoris.php';
+  static String get favoris          => '$_projectPath/api/mobile/favoris.php';
   static String get disponibilites   => '$_projectPath/api/mobile/get_disponibilites.php';
   static String get createReservation => '$_projectPath/api/mobile/create_reservation.php';
   static String get mesReservations  => '$_projectPath/api/mobile/get_mes_reservations.php';
+  static String get cancelReservation => '$_projectPath/api/mobile/cancel_reservation.php';
 
   // ── API publique française (autocomplete adresses) ─────────────────────────
   /// Pas de clé API nécessaire — usage libre.
   static const String adresseGouv = 'https://api-adresse.data.gouv.fr/search/';
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
-
-  /// Retourne l'URL complète d'une photo stockée sur le serveur PHP.
-  /// Gère les URLs relatives (chemin fichier) et absolues (http).
-  static String photoUrl(String? lienPhoto) {
+static String photoUrl(String? lienPhoto) {
     if (lienPhoto == null || lienPhoto.isEmpty) return '';
-    if (lienPhoto.startsWith('http://') || lienPhoto.startsWith('https://')) {
-      return lienPhoto;
+
+    // URL absolue localhost → extraire uniquement le path
+    if (lienPhoto.startsWith('http://localhost') || 
+        lienPhoto.startsWith('http://127.0.0.1')) {
+        final uri = Uri.tryParse(lienPhoto);
+        if (uri != null) {
+            return '$baseUrl${uri.path}';
+        }
     }
+
+    // URL absolue externe → retourner telle quelle
+    if (lienPhoto.startsWith('http://') || lienPhoto.startsWith('https://')) {
+        return lienPhoto;
+    }
+
+    // Chemin relatif
     return '$baseUrl/$lienPhoto';
-  }
 }
+}
+
