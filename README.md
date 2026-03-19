@@ -1,175 +1,144 @@
 1. Introduction
-L’application HapMobile est une transposition/adaptation mobile Flutter du projet web « Project HAP ».
-Son but principal : permettre à l’utilisateur de chercher, réserver et gérer des locations de biens et d'accéder à des services communautaires (avis, favoris, support, blog, carte interactive…) dans une expérience fluide et optimisée sur mobile.
+HapMobile est l’adaptation mobile Flutter du projet web Project HAP. L’utilisateur peut rechercher, réserver et gérer des locations, accéder à des services communautaires et utiliser une carte interactive dotée de géolocalisation native.
+L’application communique avec un backend PHP/MySQL mutualisé (APIs et BDD communes), mais propose une expérience adaptée au mobile.
 
-Elle interagit en HTTP avec le backend PHP/MySQL (APIs existantes + logicielle métier du projet web), avec plusieurs adaptations pour garantir la persistance locale, la navigation mobile et l'exploitation du GPS natif.
+2. Particularités de l’application mobile par rapport au web
+Géolocalisation utilisateur native (mobile uniquement) :
+Permet la localisation en temps réel sur la carte, le filtrage « autour de moi », le calcul de la distance vers chaque bien ou événement.
+Utilise les capteurs natifs du téléphone (via permissions gérées dynamiquement) pour optimiser la recherche et l’expérience utilisateur.
+Gestion administrative :
+Toutes les fonctionnalités d’administration, de gestion ou modération restent strictement réservées à l’interface web (aucun espace admin sur mobile).
 
-2. Parcours utilisateur & modules
+3. Architecture & descriptif exhaustif des écrans et composants
    
-2.1 Authentification
+3.1 Accueil
+Champ de recherche (texte) :
+Saisie d’adresse, ville ou mot-clé.
 
-a) LoginScreen
-Ouverture : Formulaire email / mot de passe, bouton « Se connecter », liens « S’inscrire » & « Mot de passe oublié ? »
-Saisie & clic « Se connecter » :
-Vérifie les champs (vide, email valide, longueur MDP)
-Désactive le bouton, affiche un loader
-Envoi POST à api/login.php (avec token CSRF)
-Si 5 tentatives échouées : message “Trop de tentatives, réessayez dans 15mn”
-Si succès : stocke le token/session localement (shared_preferences), redirige vers l’écran précédent ou Accueil
-Si erreur : affiche une Snackbar contextuelle (mais jamais d’indice pour email inexistant/MDP incorrect pour éviter l’énumération)
-Clic « S’inscrire » : Navigation vers InscriptionScreen
-Clic « Mot de passe oublié » : Ouvre ForgotPasswordScreen
-**Comportements automatiques **:
-Si déjà connecté : redirige sur Accueil
-Regénère automatiquement l’ID session lors de la connexion
+Icône loupe (bouton): valide la recherche, redirige vers Résultats.
 
-b) InscriptionScreen
-Formulaire en 5 étapes (Stepper)
-À chaque clic “Suivant” :
-Valide localement le ou les champs de l’étape
-Persiste tous les champs dans un model d’état (Riverpod ou Provider + shared_preferences)
-Si l’app passe en arrière-plan, tout l’état doit être restauré au retour
-À chaque step :
-Step 1 : choix persona (particulier/entreprise)
+Carte interactive (OpenStreetMap intégrée) :
+Pins interactifs : tap = aperçu du bien (popup image+titre+boutons).
+Bouton “Ma position” (icône cible) : recadre la carte sur l’utilisateur.
+Bouton “Filtrer autour de moi” : ouvre un slider pour choisir le rayon.
 
-Step 2 : Informations persos, vérifie majorité (date de naissance)
+Slider “Rayon” (0–50 km) :
+Glissière gauche/droite, change en temps réel le rayon de recherche autour de soi, modifie affichage des biens/services sur la carte.
 
-Step 3 : Adresse autocomplete (API publique) – Suggestions affichées au fil de la saisie, clic => préremplit automatiquement les champs
+Cartes catégories (Locations, Événements, Services, autres…) :
+Appui = filtre instantané et affichage des résultats de la catégorie sélectionnée.
 
-Step 4 (si entreprise) : Entrée SIRET + bouton « vérifier » (contrôle Luhn)
+Bandeaux ou tuiles infos/notifications :
+Texte explicatif et bouton “fermer” (croix).
 
-Step 5 : Mot de passe (local et server-side : min 8 caractères, maj, min, chiffre, spécial), RGPD à cocher, captcha mathématique
+3.2 Recherche & Filtres
+Champs texte :
+Adresse/localisation libre.
 
-Clic “Valider” :
-POST à api/register.php (form-data, token CSRF)
-Loader + désactivation des champs
-Affichage du succès/échec :
-Succès : Snackbar + redirige auto vers LoginScreen, supprime l’état temporaire
-Erreur : message explicite si unique, générique sinon
-En cas de retour à une étape antérieure puis retour à l’avant, l’état saisi DOIT être conservé
-L’app doit empêcher la perte de données en cas de crash/app kill/rotation écran.
+Cases à cocher :
 
-c) ForgotPasswordScreen
-Champ email, bouton “Envoyer”
-Saisie e-mail → vérifie format localement
-POST API, loader
-Affichage: "Si ce mail existe, un lien de réinitialisation vous a été envoyé"
-En local (dev : XAMPP), lien affiché directement
-Redirige vers ResetPasswordScreen si succès & clic
+Types de bien : appartement, maison, studio…
 
-d) ResetPasswordScreen
-Deux champs mot de passe + confirmation, validation côté Flutter (avant API) sur longueur/correspondance
-Bouton “Réinitialiser”
-POST à api/reset_password.php (avec token)
-Affichage succès ou erreur (expiré, mal formaté, déjà utilisé, etc.)
+Services inclus : wifi, parking, animaux acceptés, etc.
+Chaque appui sélectionne/désélectionne l’option (état visible).
 
-2.2 Accueil (AccueilScreen)
-Affichage dynamique des modules selon connexion/permissions/rôle utilisateur
-Hero Banner avec slogan
-Boutons CTA : « Voir les logements » (va à AnnoncesScreen), « Evénements proches » (va à EvenementsScreen)
-Carrousel d’annonces mises en avant : clic => DetailAnnonceScreen
-Personnalisation : message de bienvenue prénom utilisateur si connecté
-Menu de navigation global (bottom nav ou drawer selon layout/adaptatif)
-Switch thème clair/sombre (et persistance via shared_preferences)
-Bouton déconnexion/connexion toujours visible dans AppBar
+Sliders :
+Prix minimum/maximum.
+Surface minimum/maximum.
+Rayon (si pas déjà choisi à l’accueil).
 
-2.3 Recherche et annonces (AnnoncesScreen)
-Affichage : Liste/grid des biens (photos, titre, prix/nuit, type, distance si géolocalisation)
-Filtres en haut :
-Prix min/max (slider)
-Capacité (picker)
-Type de bien (chips)
-Commune (autocomplete, requête dès 2 caractères)
-“Autour de moi” (Switch Filter : si actif, demande permission GPS native, sinon fallback)
-Rayon (slider, visible si Autour de moi actif)
-Interaction :
-Chaque modification relance la recherche (debounce 300ms)
-Clic sur un bien : ouvre DetailAnnonceScreen
-Bouton cœur sur chaque bien : toggle favori (POST/DELETE API), retour immédiat UI, feedback snackbar
-Recherche textuelle : champ SearchBar, propose autocomplete et suggestions
+Bouton “Rechercher” :
+Lance la recherche avec les critères sélectionnés.
 
-2.4 Détail annonce (DetailAnnonceScreen)
-PageView d’images (swipe)
-Section complète : titre, description, équipements, type, capacité, adresse (proche POI, commune)
-Prix/nuit, mini résumé du tarif (base, modificateurs saisonniers)
-Calendrier (TableCalendar) : choisit date début+fin, grise les jours absents/dispos, semaines bloquées colorées
-Choix plage date met à jour tarif dynamique (recalcul : jours × tarif, tient compte prix haute saison, callback API si besoin)
-Section « avis » : 3 premiers affichés, bouton « Voir tous les avis » qui ouvre AvisScreen
-Boutons fixes (BottomAppBar ): “Ajouter/Retirer aux favoris”, “Réserver”
-Réserver : Si non connecté, redirige login avec message contextuel, sinon ouvre ReservationScreen
-Responsive, tout contenu doit pouvoir être scrollé dans un CustomScrollView (Slivers)
-Affiche distance à l’utilisateur si géolocalisation active
+Toggle “Affichage liste/carte” (switch ou segment button) :
+Permute l’affichage des résultats (liste <-> carte).
 
-2.5 Réservation (ReservationScreen)
-Affichage recap : logement, photos, calendrier sélectionné, prix calculé, dates choisies
-Formulaire : choix date début/fin (déjà préfilled si passé depuis DétailAnnonceScreen), bouton “Valider”
-Appelle API de check/insert réservation (dates sont vérouillées côté serveur), montant recalculé côté PHP également avec la même logique que sur mobile (double contrôle)
-En cas de succès : snackbar « Réservation créée », redirige vers Profil onglet historiques
-En cas de conflit : message d’erreur, le calendrier surligne les dates indisponibles
+3.3 Résultats
+Cartes/tiles de résultats :
+Tap sur une carte : affiche la fiche détail du bien.
 
-2.6 Carte interactive (CarteScreen)
-Initialisation : charge les biens et les POI avec coordonnées, affiche tous les marqueurs sur carte OSM (flutter_map + latlong2)
-Affichage : marquers différenciés par type, clic => BottomSheet fiche résumée + bouton naviguer (ouvre détail bien ou POI)
-Si permission GPS active, centre la carte sur auto-position ; bouton « Me localiser » recalcule la position et recadre la vue ; si non, fallback centre France
-L’utilisateur voit un marqueur personnalisé de sa position (bleu)
-Clic POI : ouvre mini-fiche + bouton aller à détail POI
-Clic bien : ouvre fiche + bouton aller à DétailAnnonceScreen
+Bouton “Réserver” : ouvre l’écran réservation du bien sélectionné.
 
-2.7 Favoris (FavorisScreen)
-Liste grid des biens favoris de l’utilisateur connecté
-Image, titre, prix/nuit, commune, note
-Bouton cœur pour supprimer (supprime/retire feedback immédiat)
-Clic : ouvre DétailAnnonceScreen
-Message si liste vide
+Icône “Favoris” (cœur) : ajouter/retirer ce bien des favoris de l’utilisateur (état cœur plein/vide).
+Infobulle “Aucun résultat” si besoin
 
-2.8 Avis & Blog (AvisScreen)
-Liste des avis publiés : nom auteur, bien concerné, note, commentaire, date
-Filtres : par bien, par note minimale ; pagination (scroll infini/20 par page)
-Clic sur “Laisser un avis” (connecté uniquement) : opens bottom sheet ou nouvelle page
-Sélection du bien parmi ceux déjà réservés (récupérés sur l’API)
-Notation étoiles, commentaire libre
-Envoi : POST API, feedback immédiat visuel (“en attente de modération”)
-Message explicite si pas d’avis
-Si clic sur bien : remonte à DétailAnnonceScreen
+3.4 Fiche Détail Bien/Annonce
+Galerie photo (carrousel horizontal) :
+Slide à gauche/droite (ou flèches) pour parcourir les images.
+Bouton “Itinéraire” (petite carte/icône voiture) :
+Ouvre la navigation dans l’app ou via Maps/Waze vers l’adresse du bien.
 
-2.9 Profil utilisateur (ProfilScreen)
-Affichage : Données utilisateur, historique réservations avec status
-Tabs (TabBar 3 Onglets) :
-Infos & modification (données éditables + bouton “Enregistrer”)
-Historique réservations (listview, possible d’annuler si “en attente”)
-Paramètres (switch thème, bouton déconnexion)
-Modification profil nécessite RGPD coché à chaque fois, validation complète des champs avant POST
-Changement mot de passe : champ ancien + nouveau + confirmation, validation avant POST
-Annulation réservation uniquement sur celles en attente, feedback couleur par status sur les Cards
-Clic “Déconnexion” : flush les shared_preferences/token, redirige login
+Bouton “Réserver” :
+Passe à l’écran de réservation avec le bien prérempli.
 
-2.10 Support (SupportScreen)
-Formulaire : type (dropdown), sujet (texte court), message, priorité (dropdown/boutons), page concernée (texte)
-Pré-remplissage nom/email si user connecté
-Validation : tous les champs requis, email valide ; feedback escaladé sur priorité urgente
-Clic “Soumettre” : POST API, success => affiche numéro de ticket, snackbar
+Section équipements/services :
+Liste à puces ou avec icônes cochées/non cochées selon la présence des équipements.
 
-2.11 Géolocalisation (service transverse)
-Service Flutter “LocationService” appelé sur CarteScreen, AnnoncesScreen (filtre autour de moi), PtsInteretDetailScreen
-Gestion permission/timeout : affiche la Snackbar ou AlertDialog selon cas
-Mode tracking optionnel sur CarteScreen (update position marker si déplacement, limité pour batterie)
-Toute distance affichée à l’utilisateur = calculée Flutter (pour l’UI), et côté backend (pour le tri SQL/Haversine)
-Les coordonnées utilisateur ne sont jamais sauvegardées en BDD, tout est local/éphémère
+Section avis et notes :
+Affichage des notes/étoiles.
+Si l’utilisateur a réservé : bouton “Déposer un avis” qui ouvre formulaire avec slider étoiles + champ texte + bouton “Envoyer”.
+Bouton retour : navigation vers la page précédente.
 
-4. Scénarios & Interactions Notables
-Tous les boutons principaux affichent un feedback visuel sur click (snackbar, loader, désactivation…)
-Transferts inter-écrans se font via Navigator push/pop avec éventuellement passage de paramètres/retour résultats (ex : après login ou réservation réussie)
-Persistance des états multi-étapes (via Providers/SharedPrefs) pour garantir aucune perte d’infos en cas de crash/background/app kill
-Gestion erreurs réseaux : toute erreur HTTP, timeout ou validation est interceptée, feedback GUI adapté (snackbar/alert, désactive la fonction et propose relancer ou diagnostic)
+3.5 Réservation
+Sélecteurs de date (allée/retour ou plage de date) :
+Tap = ouvre calendrier natif, sélection de dates.
 
-6. Tests – Critères d’acceptation
-Chaque module décrit des tests types (“T1, T2, ...”) dans le README – tous doivent avoir leurs tests automatisés correspondants côté Flutter (test/) et être validés à chaque mise à jour.
+Stepper nombre de personnes (+ / -) :
+Boutons “+” ou “-” pour incrémenter/décrémenter le nombre.
 
-7. Adaptations/Évolutions (Issues et backlog)
-Si tu souhaites que la spéc inclue un backlog précis basé sur les issues GitHub, indique-le et je ferai un résumé/ticket-by-ticket des points à revoir/intégrer/corriger.
-Idem pour les demandes issues du web.
+Cases à cocher options :
+Ménage, assurance, location de draps… (ajoute/supprime options à la réservation).
 
-8. Dépendances Flutter & Intégrations Tiers
-Toutes les dépendances nécessaires (geolocator, flutter_map, riverpod/provider, cached_network_image, carousel_slider, table_calendar, flutter_rating_bar, shared_preferences, http) doivent être listées et maintenues à jour.
-Permissions requises Android/iOS pour le GPS doivent être prévues dans le projet, voir README.
-Les APIs externes (autocomplete adresses, SIREN pour entreprises, etc.) sont appelées en direct (http) côté Flutter, résultats validés en local avant envoi au back.
+Bouton “Valider” :
+Affiche le récapitulatif, puis confirme la réservation.
+Bouton “Annuler” : retourne à la fiche bien.
+
+3.6 Mes Réservations
+Liste de réservations passées et à venir :
+Tap : détails de la réservation.
+Bouton “Annuler” (si réservation future) : ouvre dialogue de confirmation, puis annule si validé.
+
+3.7 Profil
+Champs texte éditables : nom, prénom, mail, téléphone, etc.
+Tap = édition possible, clavier natif.
+
+Bouton “Modifier” :
+Passe l’écran en mode édition.
+Bouton “Enregistrer” :
+Sauvegarde modifications sur le serveur.
+
+Bouton “Déconnexion” :
+Déconnecte l’utilisateur, retour à l’écran de login.
+
+Bouton “Supprimer mon compte” :
+Ouvre une confirmation par dialogue ; si validée, supprime le compte.
+
+3.8 Services / Événements
+Liste filtrable par distance (slider rayon).
+Bouton “Participer/S’inscrire” : ajoute l’utilisateur à l’événement/service, état modifié (inscrit/non inscrit).
+
+Bouton “Créer une demande” (pour utilisateurs habilités seulement) :
+Ouvre un formulaire spécifique.
+Toggle d’affichage carte/liste
+
+3.9 Paramètres
+Cases à cocher :
+consentement données, autres options diverses.
+Activation/désactivation prise en compte instantanément.
+Bouton “Réinitialiser”/“Vider le cache” :
+Ouvre une confirmation ; réalise l'action.
+Bouton “Retour”/navigation
+
+
+
+4. Technologies principales
+Flutter & Dart (mobile)
+APIs web mutualisées PHP/MySQL
+Géolocalisation native (geolocator)
+Carte OSM (flutter_map, latlong2)
+shared_preferences pour stockage local
+riverpod pour gestion d’état
+6. Résumé
+La version mobile reprend toutes les fonctionnalités principales à destination des utilisateurs (hors administration), avec en plus l’intégration complète de la géolocalisation native pour une expérience optimale « autour de moi ».
+Chaque composant interactif, champ, slider, case à cocher et bouton a une fonctionnalité précise décrite ci-dessus.
+
