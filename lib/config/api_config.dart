@@ -16,7 +16,7 @@ class ApiConfig {
   /// - surcharge   -> --dart-define=API_BASE_URL=...
   static String get baseUrl {
     if (_envBaseUrl.isNotEmpty) return _envBaseUrl;
-    return kIsWeb ? 'http://localhost:8080' : 'http://10.0.2.2:8080';
+    return kIsWeb ? 'http://localhost' : 'http://10.0.2.2';
   }
 
   /// Préfixe commun de l'API dans ce dépôt.

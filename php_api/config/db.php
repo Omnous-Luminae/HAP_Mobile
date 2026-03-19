@@ -35,7 +35,11 @@ function getPDO(): PDO {
             );
         } catch (PDOException $e) {
             http_response_code(500);
-            echo json_encode(['success' => false, 'message' => 'Erreur de connexion à la base de données.']);
+            echo json_encode([
+                'success' => false,
+                'message' => 'Erreur de connexion à la base de données.',
+                'error' => $e->getMessage()
+            ]);
             exit;
         }
     }
